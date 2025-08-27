@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/imagens/logo.png" alt="PLUVIAH logo" width="250"/>
+</p>
+
 # PLUVIAH
 
 Plataforma de Análise Pluviométrica e Hidráulica
