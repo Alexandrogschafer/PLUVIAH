@@ -12,8 +12,8 @@ import os
 # 1. CONFIGURAÇÃO DA PÁGINA E ESTILO VISUAL (CSS)
 # ==============================================================================
 st.set_page_config(
-    page_title="SAP-IDF | Análise Pluviométrica",
-    page_icon="💧",
+    page_title="PLUVIAH | Análise Pluviométrica e Hidráulica",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -297,13 +297,13 @@ if 'df' not in st.session_state:
 
 # --- Página Inicial para Carregamento de Arquivo ---
 if st.session_state['df'] is None:
-    st.title("Sistema de Análise Pluviométrica (SAP-IDF)")
+    st.title("Plataforma de Análise Pluviométrica e Hidráulica")
     st.caption("Uma ferramenta para análise de séries históricas de chuva e geração de curvas Intensidade-Duração-Frequência.")
     st.divider()
 
     col1, col2 = st.columns([1, 4])
     with col1:
-        st.markdown("<h1 style='text-align: center;'><i class='fas fa-cloud-rain fa-3x'></i></h1>", unsafe_allow_html=True)
+        st.image("assets/logo.png")
     with col2:
         st.header("Bem-vindo ao SAP-IDF!")
         st.markdown("""
@@ -627,7 +627,7 @@ if st.session_state['df'] is not None:
             st.markdown("---")
             st.info("Aguardando o cálculo da chuva de projeto.")
 
-    with tab5_relatorio:
+    with tab9_relatorio:
         st.markdown("## <i class='fas fa-file-alt'></i> Relatório em PDF", unsafe_allow_html=True)
         st.markdown("Gere um relatório PDF após calcular as curvas na aba **'Curvas IDF'**.")
 
@@ -661,7 +661,7 @@ if st.session_state['df'] is not None:
 
 
     with tab5_tc:
-        st.markdown("## 🕒 Tempo de Concentração")
+        st.markdown("## <i class='fas fa-stopwatch'></i> Tempo de Concentração", unsafe_allow_html=True)
         st.caption("Cálculo do tempo de concentração utilizando fórmulas empíricas (Kirpich e Giandotti).")
 
         metodo_tc = st.selectbox("Selecione o método de cálculo:", ["Kirpich", "Giandotti"])
@@ -729,11 +729,11 @@ if st.session_state['df'] is not None:
 
 
     with tab6_racional:
-        st.markdown("## 💧 Vazão de Projeto – Método Racional")
+        st.markdown("## <i class='fas fa-calculator'></i> Vazão de Projeto – Método Racional", unsafe_allow_html=True)
         st.caption("Cálculo da vazão de projeto usando a fórmula: `Q = C × i × A`")
 
         # Recuperar chuva de projeto (intensidade) e tempo de concentração se disponíveis
-        intensidade_chuva = st.session_state.get("intensidade_projeto", None)  # em mm/h
+        intensidade_chuva = st.session_state.get("intensidade_proj_result", None)  # em mm/h
         tempo_concentracao = st.session_state.get("tc_min", None)              # em minutos
 
         # Mostrar informações recuperadas
@@ -775,7 +775,7 @@ if st.session_state['df'] is not None:
     with tab7_circulares:
         import math
 
-        st.markdown("## 📏 Dimensionamento de Condutos – Fórmula de Manning")
+        st.markdown("## <i class='fas fa-arrows-left-right-to-line'></i> Dimensionamento de Condutos – Fórmula de Manning", unsafe_allow_html=True)
         st.caption("Estimativa do diâmetro necessário para escoar a vazão de projeto utilizando seção **circular cheia**.")
 
         # ---------------------------
@@ -884,7 +884,7 @@ if st.session_state['df'] is not None:
 
     with tab8_canais_abertos:
         import math
-        st.markdown("## 🌊 Canais Abertos (Manning)")
+        st.markdown("## <i class='fas fa-water'></i> Canais Abertos (Manning)", unsafe_allow_html=True)
         st.caption("Verificação e dimensionamento de seções retangular, trapezoidal e triangular para vazão de projeto.")
 
         # ---------------------------
@@ -1155,7 +1155,7 @@ if st.session_state['df'] is not None:
                     else:
                         b_sol = b_para_Q(Q, z, y_proj, S, n)
                         if b_sol is None:
-                        st.error("Não foi possível encontrar a largura b. Verifique S, n, y e Q.")
+                        	st.error("Não foi possível encontrar a largura b. Verifique S, n, y e Q.")
                         else:
                             A, P, T = geom_trapezio(b_sol, z, y_proj)
                             V = Q / A
@@ -1197,7 +1197,6 @@ if st.session_state['df'] is not None:
                             }
 
         st.caption("Obs.: válidas para escoamento uniforme. Verifique limites admissíveis de velocidade e tensão conforme material/solo do canal.")
-
 
 
 
