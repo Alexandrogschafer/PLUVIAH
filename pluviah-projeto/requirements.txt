@@ -1,0 +1,8 @@
+streamlit
+streamlit-option-menu
+pandas
+numpy
+plotly
+scipy
+fpdf2
+kaleido
