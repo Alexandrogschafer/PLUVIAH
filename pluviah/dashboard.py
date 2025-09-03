@@ -37,7 +37,14 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
     @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css');
-    html, body, [class*="st-"] { font-family: 'Poppins', sans-serif; }
+    body {
+    font-family: 'Poppins', sans-serif;
+}
+/* Ou, se quiser ser mais específico para o Streamlit sem afetar ícones: */
+.stApp {
+    font-family: 'Poppins', sans-serif;
+}
+
     :root {
         --primary-color: #56B4E9;
         --background-color: #0F1116;
