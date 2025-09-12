@@ -1,5 +1,9 @@
+
+
+# config.py
+
 # Constantes Físicas e de Engenharia
-G = 9.81  # Aceleração da gravidade (m/s²)
+G = 9.81      # Aceleração da gravidade (m/s²)
 RHO = 1000.0  # Densidade da água (kg/m³)
 
 # Mapeamento de materiais para coeficiente de Manning (n)

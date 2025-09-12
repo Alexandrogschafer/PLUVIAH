@@ -1,4 +1,7 @@
+# relatorio.py
+
 from fpdf import FPDF
+import streamlit as st
 
 class PDF(FPDF):
     def header(self):
@@ -11,7 +14,8 @@ class PDF(FPDF):
         self.set_font('Arial', 'I', 8)
         self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
 
-def generate_professional_pdf(df_idf, fig_path, duration, params_gumbel, params_lp3):
+def _construir_pdf(df_idf, fig_path, duration, params_gumbel, params_lp3):
+    """Função interna para construir o objeto PDF."""
     pdf = PDF()
     pdf.add_page()
     
@@ -59,3 +63,12 @@ def generate_professional_pdf(df_idf, fig_path, duration, params_gumbel, params_
         f"  - Coef. de Assimetria (log10): {params_lp3['skew']:.3f}"
     )
     return pdf
+
+@st.cache_data
+def gerar_pdf_bytes(df_idf, fig_path, duration, params_gumbel, params_lp3):
+    """
+    Gera o PDF em memória e retorna os bytes, aproveitando o cache do Streamlit.
+    """
+    pdf = _construir_pdf(df_idf, fig_path, duration, params_gumbel, params_lp3)
+    # CORREÇÃO: Converte o 'bytearray' para o formato 'bytes' que o Streamlit espera.
+    return bytes(pdf.output(dest='S'))

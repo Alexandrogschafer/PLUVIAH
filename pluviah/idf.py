@@ -1,6 +1,8 @@
+# idf.py
+
 import pandas as pd
 import numpy as np
-from scipy.stats import gumbel_r, pearson3, kstest
+from scipy.stats import gumbel_r, pearson3, kstest, anderson
 
 def calculate_annual_maxima(df, duration):
     """Calcula as máximas anuais para uma dada duração."""
@@ -9,16 +11,19 @@ def calculate_annual_maxima(df, duration):
     return annual_maxima
 
 def calculate_idf_curves(series, duration, trs_np):
-    """Ajusta as distribuições Gumbel e Log-Pearson III."""
+    """Ajusta as distribuições Gumbel e Log-Pearson III e retorna os parâmetros."""
     if len(series) < 5:
-        return None, None, None, None, None
+        return None, None, None, series, None, None
 
-    # Gumbel
+    # --- Gumbel ---
     mu_g, beta_g = gumbel_r.fit(series.values)
     _, ks_p = kstest(series.values, 'gumbel_r', args=(mu_g, beta_g))
+    # Teste Anderson-Darling é mais sensível nas caudas da distribuição
+    ad_result = anderson((series.values - mu_g) / beta_g, dist='gumbel_r')
     intensities_gumbel = [gumbel_r.ppf(1 - 1/tr, loc=mu_g, scale=beta_g) for tr in trs_np]
     
-    # Log-Pearson III
+    # --- Log-Pearson III ---
+    # Garante que não haja valores <= 0 para o log
     dados_log = np.log10(series.values[series.values > 0])
     skew = pd.Series(dados_log).skew()
     mean_log = np.mean(dados_log)
@@ -34,12 +39,16 @@ def calculate_idf_curves(series, duration, trs_np):
         f"Intensidade_LP3_{duration}h (mm/h)": np.array(intensities_lp3) / duration
     })
     
-    params_gumbel = {"mu": mu_g, "beta": beta_g, "ks_p": ks_p}
+    params_gumbel = {
+        "mu": mu_g, "beta": beta_g, "ks_p": ks_p, 
+        "ad_stat": ad_result.statistic, "ad_crit": ad_result.critical_values
+    }
     params_lp3 = {"mean_log": mean_log, "std_log": std_log, "skew": skew}
+    
     gumbel_params_tuple = (mu_g, beta_g)
     lp3_params_tuple = (mean_log, std_log, skew)
 
-    return df_idf, params_gumbel, params_lp3, gumbel_params_tuple, lp3_params_tuple
+    return df_idf, params_gumbel, params_lp3, series, gumbel_params_tuple, lp3_params_tuple
 
 def calcular_chuva_projeto(tr, metodo, gumbel_params, lp3_params):
     """Calcula a precipitação de projeto a partir dos parâmetros ajustados."""
