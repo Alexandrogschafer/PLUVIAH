@@ -24,7 +24,7 @@ from relatorio import gerar_pdf_bytes
 from config import MATERIAIS_MANNING, G, RHO
 
 
-# ==============================================================================
+# =============================================================================
 # 2. CONFIGURAÇÃO DA PÁGINA E ESTILO VISUAL (CSS)
 # ==============================================================================
 st.set_page_config(
