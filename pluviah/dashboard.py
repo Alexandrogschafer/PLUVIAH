@@ -19,7 +19,6 @@ from manning import (
     dimensionar_conduto_circular, geom_trapezio, manning_Q, froude, tau_medio,
     y_normal, y_critico, b_para_Q
 )
-# A função de gerar o PDF foi movida para o próprio arquivo de relatório
 from relatorio import gerar_pdf_bytes
 from config import MATERIAIS_MANNING, G, RHO
 
@@ -96,10 +95,10 @@ if 'df' not in st.session_state or st.session_state.df is None:
     pagina_selecionada = "Visão Geral"
     
     with st.sidebar:
-         if os.path.exists("assets/logo.png"):
+        if os.path.exists("assets/logo.png"):
             st.image("assets/logo.png", width=100)
-         st.markdown("<h1 style='text-align: center;'>PLUVIAH</h1>", unsafe_allow_html=True)
-         st.divider()
+        st.markdown("<h1 style='text-align: center;'>PLUVIAH</h1>", unsafe_allow_html=True)
+        st.divider()
 
 # --- LÓGICA DE ESTADO: DADOS CARREGADOS ---
 else:
@@ -131,7 +130,7 @@ else:
         )
 
 # --- RENDERIZAÇÃO DAS PÁGINAS ---
-
+# ... (As abas 1 a 5 permanecem idênticas, então foram omitidas para encurtar)
 # --- ABA 1: VISÃO GERAL (COM UPLOADER CONDICIONAL) ---
 if pagina_selecionada == "Visão Geral":
     
@@ -171,8 +170,8 @@ if pagina_selecionada == "Visão Geral":
 
         st.subheader("Série Temporal da Precipitação (Horária)")
         fig_hourly = go.Figure(data=go.Scatter(x=df_analise.index, y=df_analise['precipitacao'],
-                                               mode='lines', name='Precipitação Horária',
-                                               line=dict(color='#56B4E9', width=1)))
+                                              mode='lines', name='Precipitação Horária',
+                                              line=dict(color='#56B4E9', width=1)))
         fig_hourly.update_layout(
             template="plotly_dark", height=350,
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
@@ -224,7 +223,7 @@ elif pagina_selecionada == "Curvas IDF":
     
     duracao_idf = st.selectbox("Duração para ajuste (horas):", [1, 2, 3, 6, 12, 24], key='duracao_idf')
     
-    if st.button("Calcular Curvas IDF e Ajuste Estatístico", use_container_width=True):
+    if st.button("Calcular Curvas IDF e Ajuste Estatístico"):
         trs = np.array([2, 5, 10, 25, 50, 100])
         with st.spinner(f"Ajustando curvas para {duracao_idf}h..."):
             series_maximas = cached_calculate_annual_maxima(st.session_state.df, duracao_idf)
@@ -257,8 +256,6 @@ elif pagina_selecionada == "Curvas IDF":
             )
             st.plotly_chart(fig_idf, use_container_width=True)
 
-            # <<< INÍCIO DA CORREÇÃO 1: Geração do gráfico para PDF >>>
-            # Cria uma cópia do gráfico e aplica um tema claro para o PDF
             fig_pdf = go.Figure(fig_idf)
             fig_pdf.update_layout(
                 template="plotly_white", 
@@ -274,7 +271,6 @@ elif pagina_selecionada == "Curvas IDF":
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
                 fig_pdf.write_image(tmpfile.name, scale=2)
                 st.session_state['grafico_path'] = tmpfile.name
-            # <<< FIM DA CORREÇÃO 1 >>>
             
             st.subheader("Resultados da Análise IDF")
             st.dataframe(df_idf.style.format("{:.2f}"))
@@ -308,7 +304,7 @@ elif pagina_selecionada == "Chuva de Projeto":
         with col2:
             metodo_tab4 = st.radio("Método de Cálculo:", ["Gumbel", "Log-Pearson III"])
 
-        if st.button("Calcular Chuva de Projeto", use_container_width=True):
+        if st.button("Calcular Chuva de Projeto"):
             gumbel_params = st.session_state.get('gumbel_params_tuple')
             lp3_params = st.session_state.get('lp3_params_tuple')
 
@@ -340,7 +336,7 @@ elif pagina_selecionada == "Chuva de Projeto":
         col1.metric("Chuva de Projeto (mm)", f"{st.session_state.get('chuva_proj_result', 0):.2f}")
         col2.metric("Intensidade de Projeto (mm/h)", f"{st.session_state.get('intensidade_proj_result', 0):.2f}")
     else:
-         st.info("Aguardando cálculo da chuva de projeto.")
+        st.info("Aguardando cálculo da chuva de projeto.")
 
 # --- ABA 4: TEMPO DE CONCENTRAÇÃO ---
 elif pagina_selecionada == "Tempo de Concentração":
@@ -398,6 +394,8 @@ elif pagina_selecionada == "Vazão de Projeto":
             Q = calcular_vazao_racional(C, intensidade_chuva, A)
             st.success(f"**Vazão de projeto estimada: {Q:.3f} m³/s**")
             st.session_state["q_projeto"] = Q
+            st.session_state["vazao_C"] = C
+            st.session_state["vazao_A"] = A
         else:
             st.error("Não foi possível calcular. A intensidade da chuva não foi definida.")
 
@@ -430,6 +428,10 @@ elif pagina_selecionada == "Condutos Circulares":
                 c2.metric("Velocidade de escoamento", f"{V:.3f} m/s")
                 c1.metric("Área da seção cheia", f"{A:.3f} m²")
                 c2.metric("Tensão de arraste média", f"{tau:.2f} Pa")
+                
+                st.session_state['conduto_d_rec'] = d_rec
+                st.session_state['conduto_Q_calc'] = Q_calc
+                st.session_state['conduto_V'] = V
             else:
                 st.error("Nenhum diâmetro no intervalo padrão atendeu à vazão de projeto.")
         else:
@@ -439,90 +441,128 @@ elif pagina_selecionada == "Condutos Circulares":
 elif pagina_selecionada == "Canais Abertos":
     st.markdown("## <i class='fas fa-water'></i> Análise de Canais Abertos", unsafe_allow_html=True)
 
-    Q = st.number_input("Vazão de Projeto Q (m³/s)", min_value=0.0, value=st.session_state.get("q_projeto", 0.0), format="%.3f")
-
     with st.container(border=True):
-        st.subheader("Parâmetros Hidráulicos e Geométricos")
+        st.subheader("Parâmetros Gerais do Canal")
         c1, c2 = st.columns(2)
-        S_canal = c1.number_input("Declividade do canal (S)", value=0.001, format="%.4f")
-        mat = c2.selectbox("Material (rugosidade típica)", list(MATERIAIS_MANNING.keys()), index=0)
-        n_canal = st.number_input("Coeficiente de Manning (n)", value=float(MATERIAIS_MANNING[mat]), format="%.3f")
+        S_canal = c1.number_input("Declividade do canal (S)", value=0.001, format="%.4f", key="canal_S")
+        mat = c2.selectbox("Material (rugosidade típica)", list(MATERIAIS_MANNING.keys()), index=0, key="canal_mat")
+        n_canal = st.number_input("Coeficiente de Manning (n)", value=float(MATERIAIS_MANNING[mat]), format="%.3f", key="canal_n")
         
-        tipo = st.selectbox("Tipo de seção", ["Trapezoidal", "Retangular", "Triangular"])
-        if tipo == "Retangular": 
-            z=0.0
-            b = st.number_input("Largura (b)", value=1.0)
-        elif tipo == "Triangular": 
-            b=0.0
-            z = st.number_input("Talude (z)", value=1.5)
-        else:
-            c3,c4 = st.columns(2)
-            b = c3.number_input("Largura da base (b)", value=1.0)
-            z = c4.number_input("Talude (z)", value=1.5)
+        tipo = st.selectbox("Tipo de seção", ["Trapezoidal", "Retangular", "Triangular"], key="canal_tipo")
+        
+        b = 0.0
+        z = 0.0
+        
+        if tipo == "Trapezoidal":
+            c3, c4 = st.columns(2)
+            b = c3.number_input("Largura da base (b)", value=1.0, key="canal_b_trap")
+            z = c4.number_input("Talude (z)", value=1.5, key="canal_z_trap")
+        elif tipo == "Retangular":
+            b = st.number_input("Largura (b)", value=1.0, key="canal_b_ret")
+            z = 0.0
+        elif tipo == "Triangular":
+            b = 0.0
+            z = st.number_input("Talude (z)", value=1.5, key="canal_z_tri")
 
-    modo = st.radio("Modo de Cálculo", ["Verificar seção", "Dimensionar profundidade (y)", "Dimensionar largura (b)"], horizontal=True, key="canal_modo")
-
-    if modo == "Verificar seção":
+    st.divider()
+    st.subheader("Calculadoras Hidráulicas")
+    
+    with st.container(border=True):
+        st.markdown("#### 1. Verificar Capacidade da Seção")
         y_verif = st.number_input("Profundidade (y) para verificação", value=0.5, key="y_verif")
-        if st.button("Verificar Seção"):
+        if st.button("Verificar Vazão"):
             A, P, T = geom_trapezio(b, z, y_verif)
             Q_calc = manning_Q(A, P, S_canal, n_canal)
             st.metric("Capacidade de vazão do canal", f"{Q_calc:.3f} m³/s")
 
-    elif modo == "Dimensionar profundidade (y)":
-        if st.button("Dimensionar Profundidade (y)"):
-            if Q > 0:
-                yn = y_normal(Q, b, z, S_canal, n_canal)
+    with st.container(border=True):
+        st.markdown("#### 2. Dimensionar Profundidade (y)")
+        q_dim_y = st.number_input("Vazão de Projeto (Q)", min_value=0.0, value=st.session_state.get("q_projeto", 0.0), format="%.3f", key="q_dim_y")
+        if st.button("Calcular Profundidade (y)"):
+            if q_dim_y > 0:
+                yn = y_normal(q_dim_y, b, z, S_canal, n_canal)
                 if yn:
                     st.success(f"**Profundidade normal (y) encontrada: {yn:.3f} m**")
-                    A, P, T = geom_trapezio(b, z, yn)
-                    yc = y_critico(Q, b, z)
-                    Fr = froude(Q, A, T)
+                    yc = y_critico(q_dim_y, b, z)
+                    regime = "Subcrítico" if yn > yc else "Supercrítico"
+                    
                     c1, c2 = st.columns(2)
                     c1.metric("Profundidade Crítica (yc)", f"{yc:.3f} m")
-                    c2.metric("Regime", "Subcrítico" if yn > yc else "Supercrítico")
-                else: 
+                    c2.metric("Regime de Escoamento", regime)
+
+                    # --- ALTERAÇÃO AQUI: Linha 'st.session_state['canal_tipo'] = tipo' foi REMOVIDA ---
+                    st.session_state['canal_yn'] = yn
+                    st.session_state['canal_yc'] = yc
+                    st.session_state['canal_regime'] = regime
+                else:
                     st.error("Não foi possível encontrar a profundidade.")
-            else: 
+            else:
                 st.warning("Informe uma vazão de projeto > 0.")
 
-    elif modo == "Dimensionar largura (b)":
+    with st.container(border=True):
+        st.markdown("#### 3. Dimensionar Largura da Base (b)")
+        q_dim_b = st.number_input("Vazão de Projeto (Q)", min_value=0.0, value=st.session_state.get("q_projeto", 0.0), format="%.3f", key="q_dim_b")
         y_proj = st.number_input("Profundidade de projeto (y)", value=0.5, key="y_proj_b")
-        if st.button("Dimensionar Largura (b)"):
-            if Q > 0:
-                b_sol = b_para_Q(Q, z, y_proj, S_canal, n_canal)
-                if b_sol: 
+        if st.button("Calcular Largura (b)", disabled=(tipo=="Triangular")):
+            if tipo == "Triangular":
+                st.info("O dimensionamento de largura não se aplica a canais triangulares (b=0).")
+            elif q_dim_b > 0:
+                b_sol = b_para_Q(q_dim_b, z, y_proj, S_canal, n_canal)
+                if b_sol:
                     st.success(f"**Largura (b) encontrada: {b_sol:.3f} m**")
-                else: 
+                else:
                     st.error("Não foi possível encontrar a largura.")
-            else: 
+            else:
                 st.warning("Informe uma vazão de projeto > 0.")
-
 
 # --- ABA 8: RELATÓRIO PDF ---
 elif pagina_selecionada == "Relatório PDF":
     st.markdown("## <i class='fas fa-file-alt'></i> Relatório em PDF", unsafe_allow_html=True)
     
     if st.session_state.get('df_idf') is not None and st.session_state.get('grafico_path') is not None:
-        st.info(f"Pronto para gerar o relatório para a duração de **{st.session_state.get('duracao_idf_calculada')} horas**.")
+        st.info(f"Pronto para gerar o relatório com todos os dados calculados até o momento.")
         
-        # <<< INÍCIO DA CORREÇÃO 2: Botão Único >>>
-        # A função gerar_pdf_bytes é chamada para preparar os dados para o botão de download
-        pdf_bytes = gerar_pdf_bytes(
-            st.session_state['df_idf'],
-            st.session_state['grafico_path'],
-            st.session_state['duracao_idf_calculada'],
-            st.session_state['params_gumbel'],
-            st.session_state['params_lp3']
-        )
+        dados_para_relatorio = {
+            "idf": {
+                "df_idf": st.session_state.get('df_idf'),
+                "fig_path": st.session_state.get('grafico_path'),
+                "duracao": st.session_state.get('duracao_idf_calculada'),
+                "params_gumbel": st.session_state.get('params_gumbel'),
+                "params_lp3": st.session_state.get('params_lp3')
+            },
+            "chuva_projeto": {
+                "intensidade": st.session_state.get('intensidade_proj_result'),
+                "chuva_total": st.session_state.get('chuva_proj_result'),
+            },
+            "tc": {
+                "tc_min": st.session_state.get('tc_min')
+            },
+            "vazao": {
+                "q_projeto": st.session_state.get('q_projeto'),
+                "C": st.session_state.get('vazao_C'),
+                "A": st.session_state.get('vazao_A')
+            },
+            "conduto": {
+                "diametro": st.session_state.get('conduto_d_rec'),
+                "vazao_calc": st.session_state.get('conduto_Q_calc'),
+                "velocidade": st.session_state.get('conduto_V'),
+            },
+            "canal": {
+                "tipo": st.session_state.get('canal_tipo'),
+                "yn": st.session_state.get('canal_yn'),
+                "yc": st.session_state.get('canal_yc'),
+                "regime": st.session_state.get('canal_regime'),
+            }
+        }
+
+        pdf_bytes = gerar_pdf_bytes(dados_para_relatorio)
         
         st.download_button(
-            label="Baixar Relatório em PDF",
+            label="Baixar Relatório Completo em PDF",
             data=pdf_bytes,
-            file_name=f"Relatorio_IDF_{st.session_state['duracao_idf_calculada']}h.pdf",
+            file_name=f"Relatorio_PLUVIAH.pdf",
             mime="application/pdf",
             use_container_width=True
         )
-        # <<< FIM DA CORREÇÃO 2 >>>
     else:
         st.warning("Calcule uma curva IDF primeiro para poder gerar o relatório.")
