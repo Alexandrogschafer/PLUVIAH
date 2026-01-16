@@ -1,7 +1,7 @@
 import pandas as pd
 
 def load_data(uploaded_file):
-    """Lê e processa o arquivo CSV de chuvas."""
+    """Lê e processa o arquivo CSV contendo a série temporal de precipitacao."""
     df_raw = pd.read_csv(uploaded_file, sep=None, engine='python', encoding='utf-8')
     df_raw.columns = [col.strip().lower() for col in df_raw.columns]
 
@@ -10,7 +10,7 @@ def load_data(uploaded_file):
             df_raw["precipitacao"].astype(str).str.replace(",", "."), errors='coerce'
         )
     else:
-        raise ValueError("Coluna 'precipitacao' não encontrada.")
+        raise ValueError("Coluna 'precipitacao' nao encontrada.")
 
     if "datahora" in df_raw.columns:
         df_raw["datahora"] = pd.to_datetime(df_raw["datahora"], errors='coerce')
@@ -22,7 +22,7 @@ def load_data(uploaded_file):
             errors="coerce"
         )
     else:
-        raise ValueError("Colunas de data e hora não reconhecidas. Use 'datahora' ou 'data' e 'hora'.")
+        raise ValueError("Colunas de data e hora nao reconhecidas. Use 'datahora' ou 'data' e 'hora'.")
 
     df_raw = df_raw.dropna(subset=["datahora", "precipitacao"])
     df = df_raw[["datahora", "precipitacao"]].sort_values("datahora").set_index("datahora")
