@@ -66,7 +66,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 3. FUNÇÕES COM CACHE (NA CAMADA DE UI)
+# 3. FUNÇÕES COM CACHE
 # ==============================================================================
 @st.cache_data
 def cached_load_data(uploaded_file):
@@ -130,7 +130,6 @@ else:
         )
 
 # --- RENDERIZAÇÃO DAS PÁGINAS ---
-# ... (As abas 1 a 5 permanecem idênticas, então foram omitidas para encurtar)
 # --- ABA 1: VISÃO GERAL (COM UPLOADER CONDICIONAL) ---
 if pagina_selecionada == "Visão Geral":
     
@@ -490,7 +489,6 @@ elif pagina_selecionada == "Canais Abertos":
                     c1.metric("Profundidade Crítica (yc)", f"{yc:.3f} m")
                     c2.metric("Regime de Escoamento", regime)
 
-                    # --- ALTERAÇÃO AQUI: Linha 'st.session_state['canal_tipo'] = tipo' foi REMOVIDA ---
                     st.session_state['canal_yn'] = yn
                     st.session_state['canal_yc'] = yc
                     st.session_state['canal_regime'] = regime
