@@ -49,7 +49,7 @@ def _construir_pdf(dados_relatorio):
     pdf = PDF()
     pdf.add_page()
     
-    # --- Seção 1: Curvas IDF ---
+    # --- Secao 1: Curvas IDF ---
     if 'idf' in dados_relatorio:
         dados_idf = dados_relatorio['idf']
         pdf.chapter_title(f"1. Curvas IDF (Duração: {dados_idf['duracao']} horas)")
@@ -84,7 +84,7 @@ def _construir_pdf(dados_relatorio):
     
     pdf.add_page()
     
-    # --- Seção 2: Parâmetros de Projeto ---
+    # --- Secao 2: Parametros de Projeto ---
     pdf.chapter_title("2. Parâmetros de Projeto")
     texto_params = ""
     if 'chuva_projeto' in dados_relatorio and dados_relatorio['chuva_projeto'].get('intensidade') is not None:
@@ -107,11 +107,11 @@ def _construir_pdf(dados_relatorio):
         )
     pdf.chapter_body(texto_params or "Nenhum parâmetro de projeto foi calculado.")
 
-    # --- Seção 3: Dimensionamento Hidráulico ---
+    # --- Secao 3: Dimensionamento Hidraulico ---
     pdf.chapter_title("3. Dimensionamento Hidráulico")
     texto_hidraulico = ""
     
-    # --- ALTERAÇÃO AQUI: Verifica se o valor principal (diametro) existe ---
+    
     if 'conduto' in dados_relatorio and dados_relatorio['conduto'].get('diametro') is not None:
         dados = dados_relatorio['conduto']
         texto_hidraulico += (
@@ -121,7 +121,7 @@ def _construir_pdf(dados_relatorio):
             f"  - Velocidade: {dados['velocidade']:.3f} m/s\n\n"
         )
         
-    # --- ALTERAÇÃO AQUI: Verifica se o valor principal (yn) existe ---
+    
     if 'canal' in dados_relatorio and dados_relatorio['canal'].get('yn') is not None:
         dados = dados_relatorio['canal']
         texto_hidraulico += (
