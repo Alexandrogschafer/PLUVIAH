@@ -1,5 +1,3 @@
-
-
 # config.py
 
 # Constantes Físicas e de Engenharia
