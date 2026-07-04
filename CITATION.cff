@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "Se você utilizar este software, por favor cite-o utilizando os metadados abaixo."
+type: software
+title: "PLUVIAH: Plataforma de Análise Pluviométrica e Hidráulica"
+abstract: >-
+  O PLUVIAH é um software acadêmico-institucional desenvolvido em Python
+  (Streamlit) para apoiar engenheiros, professores e estudantes no estudo de
+  hidrologia e hidráulica. Integra processamento de séries de precipitação,
+  ajuste de curvas IDF, estimativa de chuvas de projeto, cálculo de tempo de
+  concentração (Kirpich e Giandotti), determinação da vazão de projeto
+  (Método Racional) e dimensionamento de condutos circulares e canais
+  abertos (Manning), com geração automatizada de relatórios técnicos.
+authors:
+  - family-names: "Gularte Schafer"
+    given-names: "Alexandro"
+    orcid: "https://orcid.org/0000-0001-8700-0860"
+    affiliation: "Universidade Federal do Pampa (UNIPAMPA) - Campus Bagé"
+  - family-names: "Witkoski Barcelos da Rocha"
+    given-names: "Heduardo"
+    orcid: "https://orcid.org/0009-0009-6776-2652"
+    affiliation: "Universidade Federal do Pampa (UNIPAMPA) - Campus Bagé"
+repository-code: "https://github.com/Alexandrogschafer/PLUVIAH"
+license: MIT
+version: "1.0.0"
+date-released: "2026-07-04"
+keywords:
+  - hidrologia
+  - hidráulica
+  - engenharia de recursos hídricos
+  - software open source
+  - análise de precipitação
+  - drenagem urbana
