@@ -118,8 +118,14 @@ def _construir_pdf(dados_relatorio):
             f"Conduto Circular:\n"
             f"  - Diâmetro Recomendado: {dados['diametro']:.3f} m\n"
             f"  - Vazão de Capacidade: {dados['vazao_calc']:.3f} m³/s\n"
-            f"  - Velocidade: {dados['velocidade']:.3f} m/s\n\n"
+            f"  - Velocidade: {dados['velocidade']:.3f} m/s\n"
         )
+        if dados.get('razao_yD') is not None:
+            texto_hidraulico += (
+                f"  - Razão de Enchimento na Vazão de Projeto (y/D): {dados['razao_yD']:.2f} "
+                f"({'dentro' if dados.get('dentro_criterio') else 'acima'} do critério de projeto)\n"
+            )
+        texto_hidraulico += "\n"
         
     
     if 'canal' in dados_relatorio and dados_relatorio['canal'].get('yn') is not None:

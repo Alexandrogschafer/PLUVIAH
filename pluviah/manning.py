@@ -23,6 +23,66 @@ def dimensionar_conduto_circular(Q_projeto, n, S, d_min_m, d_max_m, passo_m):
         d += passo_m
     return None, None
 
+# Razao y/D onde a vazao de um conduto circular parcialmente cheio atinge seu pico
+# (~93,8% de enchimento); acima disso a vazao volta a cair ate a secao cheia (y/D = 1),
+# entao e o limite superior fisicamente relevante para buscar a profundidade normal
+# no ramo ascendente (crescente) da curva de vazao.
+Y_SOBRE_D_PICO_VAZAO = 0.938
+
+def geom_circular_parcial(d, y):
+    """Retorna area molhada (A) e perimetro molhado (P) de um conduto circular de
+    diametro d parcialmente cheio ate a profundidade y (0 <= y <= d)."""
+    if d <= 0 or y <= 0:
+        return 0.0, 0.0
+    y = min(y, d)
+    theta = 2.0 * math.acos(1.0 - 2.0 * y / d)
+    A = (d ** 2 / 8.0) * (theta - math.sin(theta))
+    P = (theta / 2.0) * d
+    return A, P
+
+def q_manning_circular_parcial(y, d, n, S):
+    """Calcula a vazao pela formula de Manning em um conduto circular parcialmente
+    cheio ate a profundidade y."""
+    if d <= 0 or n <= 0 or S <= 0 or y <= 0:
+        return 0.0
+    A, P = geom_circular_parcial(d, y)
+    if P <= 0:
+        return 0.0
+    R = A / P
+    return (1.0 / n) * A * (R ** (2.0 / 3.0)) * (S ** 0.5)
+
+def razao_enchimento_conduto_circular(Qd, d, n, S, criterio_max=0.85):
+    """
+    Calcula a razao de enchimento (y/D) de um conduto circular de diametro d para a
+    vazao de projeto Qd, e verifica se atende a um criterio de projeto configuravel
+    (ex.: y/D <= 0.85, comumente adotado para evitar escoamento proximo a secao plena).
+
+    A profundidade normal e buscada no ramo ascendente da curva de vazao parcial
+    (0 < y/D <= Y_SOBRE_D_PICO_VAZAO), que e o ramo fisicamente relevante para
+    dimensionamento — acima do pico a mesma vazao poderia ser satisfeita por uma
+    profundidade espuria, proxima da secao plena.
+
+    Retorna (razao_yD, dentro_do_criterio):
+      - razao_yD: a razao y/D encontrada; None se Qd exceder a capacidade plena do conduto.
+      - dentro_do_criterio: True se razao_yD <= criterio_max (ou se Qd <= 0).
+    """
+    if Qd <= 0 or d <= 0:
+        return 0.0, True
+
+    Q_full = q_manning_circular_cheia(d, n, S)
+    if Qd > Q_full:
+        return None, False
+
+    def f(y):
+        return q_manning_circular_parcial(y, d, n, S) - Qd
+
+    y_sol = bissecao(f, 1e-6 * d, Y_SOBRE_D_PICO_VAZAO * d)
+    if y_sol is None:
+        return None, False
+
+    razao_yD = y_sol / d
+    return razao_yD, razao_yD <= criterio_max
+
 # --- Funções para Canais Abertos ---
 
 def geom_trapezio(b, z, y):

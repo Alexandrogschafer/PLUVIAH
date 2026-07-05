@@ -17,7 +17,7 @@ from tc import calcular_tc_kirpich, calcular_tc_giandotti
 from racional import calcular_vazao_racional
 from manning import (
     dimensionar_conduto_circular, geom_trapezio, manning_Q, froude, tau_medio,
-    y_normal, y_critico, b_para_Q
+    y_normal, y_critico, b_para_Q, razao_enchimento_conduto_circular
 )
 from relatorio import gerar_pdf_bytes
 from config import MATERIAIS_MANNING, G, RHO
@@ -409,28 +409,46 @@ elif pagina_selecionada == "Condutos Circulares":
         c1, c2 = st.columns(2)
         n = c1.number_input("Coeficiente de Manning (n)", min_value=0.010, value=0.013, format="%.3f")
         S = c2.number_input("Declividade do conduto S (m/m)", min_value=0.0001, value=0.0100, format="%.4f")
+        criterio_yD = st.number_input(
+            "Critério de projeto — enchimento máximo (y/D)",
+            min_value=0.10, max_value=1.00, value=0.85, step=0.05, format="%.2f",
+            help="Razão máxima de enchimento aceita para a vazão de projeto (comumente 0,85 para evitar escoamento próximo à seção plena)."
+        )
 
     if st.button("Dimensionar Conduto"):
         if Q > 0:
             with st.spinner("Calculando..."):
                 d_rec, Q_calc = dimensionar_conduto_circular(Q, n, S, d_min_m=0.05, d_max_m=3.0, passo_m=0.01)
-            
+
             if d_rec:
                 st.success(f"**Diâmetro mínimo recomendado: {d_rec:.3f} m**")
                 A = (math.pi / 4.0) * d_rec**2
                 R = d_rec / 4.0
                 V = Q_calc / A if A > 0 else 0
                 tau = tau_medio(R, S)
-                
+                razao_yD, dentro_criterio = razao_enchimento_conduto_circular(Q, d_rec, n, S, criterio_max=criterio_yD)
+
                 c1, c2 = st.columns(2)
                 c1.metric("Vazão de capacidade do conduto", f"{Q_calc:.3f} m³/s")
                 c2.metric("Velocidade de escoamento", f"{V:.3f} m/s")
                 c1.metric("Área da seção cheia", f"{A:.3f} m²")
                 c2.metric("Tensão de arraste média", f"{tau:.2f} Pa")
-                
+
+                if razao_yD is not None:
+                    c1, c2 = st.columns(2)
+                    c1.metric("Razão de enchimento na vazão de projeto (y/D)", f"{razao_yD:.2f}")
+                    if dentro_criterio:
+                        c2.success(f"Dentro do critério de projeto (y/D ≤ {criterio_yD:.2f}).")
+                    else:
+                        c2.warning(f"Acima do critério de projeto (y/D ≤ {criterio_yD:.2f}). Considere um diâmetro maior.")
+                else:
+                    st.warning("Não foi possível calcular a razão de enchimento (y/D) para esta combinação de parâmetros.")
+
                 st.session_state['conduto_d_rec'] = d_rec
                 st.session_state['conduto_Q_calc'] = Q_calc
                 st.session_state['conduto_V'] = V
+                st.session_state['conduto_razao_yD'] = razao_yD
+                st.session_state['conduto_dentro_criterio'] = dentro_criterio
             else:
                 st.error("Nenhum diâmetro no intervalo padrão atendeu à vazão de projeto.")
         else:
@@ -544,6 +562,8 @@ elif pagina_selecionada == "Relatório PDF":
                 "diametro": st.session_state.get('conduto_d_rec'),
                 "vazao_calc": st.session_state.get('conduto_Q_calc'),
                 "velocidade": st.session_state.get('conduto_V'),
+                "razao_yD": st.session_state.get('conduto_razao_yD'),
+                "dentro_criterio": st.session_state.get('conduto_dentro_criterio'),
             },
             "canal": {
                 "tipo": st.session_state.get('canal_tipo'),
