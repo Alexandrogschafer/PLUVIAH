@@ -78,7 +78,11 @@ def _construir_pdf(dados_relatorio):
                 f"Distribuição Log-Pearson III:\n"
                 f"  - Média (log10): {params.get('mean_log', 0):.3f}\n"
                 f"  - Desvio Padrão (log10): {params.get('std_log', 0):.3f}\n"
-                f"  - Coef. de Assimetria (log10): {params.get('skew', 0):.3f}"
+                f"  - Coef. de Assimetria (log10): {params.get('skew', 0):.3f}\n"
+                f"  - Teste K-S (p-valor): {params.get('ks_p', 0):.4f} "
+                f"({'Aceito' if params.get('ks_p', 0) > 0.05 else 'Rejeitado'} a 5% de significância)\n"
+                f"  - Teste Anderson-Darling (p-valor): {params.get('ad_p', 0):.4f} "
+                f"({'Aceito' if params.get('ad_p', 0) > 0.05 else 'Rejeitado'} a 5% de significância)"
             )
             pdf.chapter_body(texto_lp3)
     

@@ -1,8 +1,10 @@
 # tests/test_idf.py
 
+import numpy as np
 import pandas as pd
 import pytest
-from idf import calculate_annual_maxima
+from scipy.stats import pearson3
+from idf import calculate_annual_maxima, calculate_idf_curves
 
 @pytest.fixture
 def serie_chuva_exemplo():
@@ -39,3 +41,56 @@ def test_maxima_anual_duracao_2h(serie_chuva_exemplo):
     # Somas móveis para 2021: [8, 23, 45]. Máximo é 45.
     assert maximas.loc[2020] == pytest.approx(35)
     assert maximas.loc[2021] == pytest.approx(45)
+
+
+def _serie_a_partir_de_log(valores_log, ano_inicial=1980):
+    """Monta uma Serie de maximas anuais (mm) a partir de valores em escala log10."""
+    valores = 10 ** np.asarray(valores_log)
+    return pd.Series(valores, index=range(ano_inicial, ano_inicial + len(valores)))
+
+
+def test_calculate_idf_curves_inclui_teste_de_aderencia_lp3():
+    """
+    calculate_idf_curves deve computar um teste de aderencia (K-S e Anderson-Darling)
+    para o ajuste Log-Pearson III, nao apenas para o Gumbel.
+    """
+    rng = np.random.default_rng(7)
+    log_amostra = pearson3.rvs(0.4, loc=1.0, scale=0.15, size=40, random_state=rng)
+    serie = _serie_a_partir_de_log(log_amostra)
+
+    _, _, params_lp3, _, _, _ = calculate_idf_curves(serie, duration=1, trs_np=np.array([2, 5, 10, 25, 50, 100]))
+
+    for chave in ("ks_p", "ad_stat", "ad_p"):
+        assert chave in params_lp3
+
+    assert 0.0 <= params_lp3["ks_p"] <= 1.0
+    assert 0.0 <= params_lp3["ad_p"] <= 1.0
+    assert params_lp3["ad_stat"] >= 0.0
+
+
+def test_lp3_aderencia_boa_vs_ma():
+    """
+    Uma amostra gerada por uma Pearson III (em escala log10) deve produzir um
+    p-valor alto (boa aderencia). Uma amostra claramente bimodal — que nenhuma
+    Pearson III unimodal consegue descrever, mesmo casando media/desvio/assimetria —
+    deve produzir um p-valor baixo (ma aderencia), tanto no K-S quanto no Anderson-Darling.
+    """
+    rng = np.random.default_rng(7)
+
+    log_boa = pearson3.rvs(0.4, loc=1.0, scale=0.15, size=40, random_state=rng)
+    serie_boa = _serie_a_partir_de_log(log_boa)
+
+    cluster1 = 0.5 + 0.02 * rng.standard_normal(20)
+    cluster2 = 2.5 + 0.02 * rng.standard_normal(20)
+    log_ma = np.concatenate([cluster1, cluster2])
+    serie_ma = _serie_a_partir_de_log(log_ma)
+
+    trs = np.array([2, 5, 10, 25, 50, 100])
+    _, _, params_boa, _, _, _ = calculate_idf_curves(serie_boa, duration=1, trs_np=trs)
+    _, _, params_ma, _, _, _ = calculate_idf_curves(serie_ma, duration=1, trs_np=trs)
+
+    assert params_boa["ks_p"] > 0.05
+    assert params_boa["ad_p"] > 0.05
+
+    assert params_ma["ks_p"] < 0.05
+    assert params_ma["ad_p"] < 0.05
