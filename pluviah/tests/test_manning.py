@@ -1,11 +1,15 @@
 # tests/test_manning.py
 
+import math
 import pytest
 from manning import (
     geom_trapezio,
     manning_Q,
     q_manning_circular_cheia,
-    dimensionar_conduto_circular
+    dimensionar_conduto_circular,
+    geom_circular_parcial,
+    q_manning_circular_parcial,
+    razao_enchimento_conduto_circular,
 )
 
 # --- Testes para Canais Abertos (Trapezoidal/Retangular) ---
@@ -132,3 +136,94 @@ def test_dimensionar_conduto_nao_encontrado():
 
     assert d_rec is None
     assert Q_calc is None
+
+# --- Testes para Condutos Circulares Parcialmente Cheios (Razão de Enchimento) ---
+
+def test_geom_circular_parcial_meia_secao():
+    """
+    Verifica a geometria de um conduto circular à meia-seção (y = D/2).
+    Valores de referência (D=0.5 m):
+      theta = 2*acos(1 - 2*(D/2)/D) = 2*acos(0) = pi
+      A = (D²/8)*(pi - sin(pi)) = (D²/8)*pi ≈ 0.098175 m²
+      P = (pi/2)*D ≈ 0.785398 m
+    """
+    d = 0.5
+    A, P = geom_circular_parcial(d, y=d / 2)
+
+    assert A == pytest.approx((d**2 / 8.0) * math.pi, rel=1e-6)
+    assert P == pytest.approx((math.pi / 2.0) * d, rel=1e-6)
+
+    # À meia-seção, o raio hidráulico R = A/P coincide com o da seção plena (D/4),
+    # já que tanto a área quanto o perímetro molhado são exatamente metade dos da seção cheia.
+    assert A / P == pytest.approx(d / 4.0, rel=1e-6)
+
+def test_q_manning_circular_parcial_meia_secao_e_metade_da_vazao_cheia():
+    """
+    Como o raio hidráulico à meia-seção (y=D/2) é igual ao da seção plena, e a área
+    é exatamente metade, a vazão de Manning à meia-seção deve ser exatamente metade
+    da vazão em seção plena (mesmo n, S e R).
+    """
+    d, n, S = 0.5, 0.013, 0.01
+
+    q_cheia = q_manning_circular_cheia(d, n, S)
+    q_meia = q_manning_circular_parcial(d / 2, d, n, S)
+
+    assert q_meia == pytest.approx(q_cheia / 2.0, rel=1e-6)
+
+def test_razao_enchimento_conduto_circular_calculo_correto():
+    """
+    Para uma vazão de projeto igual à metade da capacidade plena, a razão de
+    enchimento (y/D) deve ser 0.5 (ver teste da meia-seção acima) e estar dentro
+    do critério padrão de projeto (y/D <= 0.85).
+    """
+    d, n, S = 0.5, 0.013, 0.01
+    Q_full = q_manning_circular_cheia(d, n, S)
+
+    razao_yD, dentro_criterio = razao_enchimento_conduto_circular(Q_full / 2.0, d, n, S)
+
+    assert razao_yD == pytest.approx(0.5, rel=1e-3)
+    assert dentro_criterio is True
+
+def test_razao_enchimento_comportamento_fisico():
+    """
+    Garante que, mantendo o diâmetro fixo, uma vazão de projeto maior resulta em
+    uma razão de enchimento (y/D) maior — comportamento físico esperado.
+    """
+    d, n, S = 0.5, 0.013, 0.01
+    Q_full = q_manning_circular_cheia(d, n, S)
+
+    razao_baixa, _ = razao_enchimento_conduto_circular(Q_full * 0.3, d, n, S)
+    razao_alta, _ = razao_enchimento_conduto_circular(Q_full * 0.9, d, n, S)
+
+    assert razao_alta > razao_baixa
+
+def test_razao_enchimento_acima_do_criterio_configuravel():
+    """
+    Perto da capacidade plena (Q -> Qfull), a razão de enchimento no ramo ascendente
+    tende a ~0.82 (valor clássico de hidráulica de condutos circulares). Com um
+    critério de projeto mais rígido (0.75), isso deve ser sinalizado como fora do critério,
+    embora o critério padrão (0.85) ainda seja atendido.
+    """
+    d, n, S = 0.5, 0.013, 0.01
+    Q_full = q_manning_circular_cheia(d, n, S)
+    Q_quase_cheio = Q_full * 0.999
+
+    razao_yD, dentro_padrao = razao_enchimento_conduto_circular(Q_quase_cheio, d, n, S)
+    _, dentro_rigido = razao_enchimento_conduto_circular(Q_quase_cheio, d, n, S, criterio_max=0.75)
+
+    assert razao_yD == pytest.approx(0.82, abs=0.01)
+    assert dentro_padrao is True
+    assert dentro_rigido is False
+
+def test_razao_enchimento_vazao_acima_da_capacidade_plena():
+    """
+    Se a vazão de projeto excede a capacidade da seção plena, não existe profundidade
+    y/D <= 1 que a atenda: a função deve sinalizar isso (razão None, fora do critério).
+    """
+    d, n, S = 0.5, 0.013, 0.01
+    Q_full = q_manning_circular_cheia(d, n, S)
+
+    razao_yD, dentro_criterio = razao_enchimento_conduto_circular(Q_full * 1.5, d, n, S)
+
+    assert razao_yD is None
+    assert dentro_criterio is False
