@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from scipy.stats import pearson3
+from scipy.stats import pearson3, genextreme
 from idf import calculate_annual_maxima, calculate_idf_curves, calcular_chuva_projeto
 
 @pytest.fixture
@@ -58,7 +58,7 @@ def test_calculate_idf_curves_inclui_teste_de_aderencia_lp3():
     log_amostra = pearson3.rvs(0.4, loc=1.0, scale=0.15, size=40, random_state=rng)
     serie = _serie_a_partir_de_log(log_amostra)
 
-    _, _, params_lp3, _, _, _ = calculate_idf_curves(serie, duration=1, trs_np=np.array([2, 5, 10, 25, 50, 100]))
+    _, _, params_lp3, _, _, _, _, _ = calculate_idf_curves(serie, duration=1, trs_np=np.array([2, 5, 10, 25, 50, 100]))
 
     for chave in ("ks_p", "ad_stat", "ad_p"):
         assert chave in params_lp3
@@ -86,8 +86,8 @@ def test_lp3_aderencia_boa_vs_ma():
     serie_ma = _serie_a_partir_de_log(log_ma)
 
     trs = np.array([2, 5, 10, 25, 50, 100])
-    _, _, params_boa, _, _, _ = calculate_idf_curves(serie_boa, duration=1, trs_np=trs)
-    _, _, params_ma, _, _, _ = calculate_idf_curves(serie_ma, duration=1, trs_np=trs)
+    _, _, params_boa, _, _, _, _, _ = calculate_idf_curves(serie_boa, duration=1, trs_np=trs)
+    _, _, params_ma, _, _, _, _, _ = calculate_idf_curves(serie_ma, duration=1, trs_np=trs)
 
     assert params_boa["ks_p"] > 0.05
     assert params_boa["ad_p"] > 0.05
@@ -110,28 +110,29 @@ def maximas_anuais_exemplo():
 def test_calculate_idf_curves_serie_curta():
     """Com menos de 5 anos de dados nao ha ajuste: todos os resultados sao None, menos a serie."""
     serie = pd.Series([30.0, 42.0, 51.0, 38.0], index=range(2000, 2004))
-    df_idf, pg, pl, serie_ret, tg, tl = calculate_idf_curves(serie, duration=1, trs_np=TRS)
+    df_idf, pg, pl, serie_ret, tg, tl, pgev, tgev = calculate_idf_curves(serie, duration=1, trs_np=TRS)
     assert df_idf is None and pg is None and pl is None and tg is None and tl is None
+    assert pgev is None and tgev is None
     assert serie_ret is serie
 
 def test_calculate_idf_curves_estrutura_da_tabela(maximas_anuais_exemplo):
     """A tabela IDF tem uma linha por TR e as colunas nomeadas pela duracao."""
-    df_idf, _, _, _, _, _ = calculate_idf_curves(maximas_anuais_exemplo, duration=2, trs_np=TRS)
+    df_idf, _, _, _, _, _, _, _ = calculate_idf_curves(maximas_anuais_exemplo, duration=2, trs_np=TRS)
     assert list(df_idf.columns) == [
-        "TR (anos)", "Gumbel_2h (mm)", "LP3_2h (mm)",
-        "Intensidade_Gumbel_2h (mm/h)", "Intensidade_LP3_2h (mm/h)",
+        "TR (anos)", "Gumbel_2h (mm)", "LP3_2h (mm)", "GEV_2h (mm)",
+        "Intensidade_Gumbel_2h (mm/h)", "Intensidade_LP3_2h (mm/h)", "Intensidade_GEV_2h (mm/h)",
     ]
     assert list(df_idf["TR (anos)"]) == list(TRS)
 
 def test_calculate_idf_curves_intensidade_e_altura_sobre_duracao(maximas_anuais_exemplo):
     """Intensidade (mm/h) = altura precipitada (mm) / duracao (h)."""
-    df_idf, _, _, _, _, _ = calculate_idf_curves(maximas_anuais_exemplo, duration=4, trs_np=TRS)
+    df_idf, _, _, _, _, _, _, _ = calculate_idf_curves(maximas_anuais_exemplo, duration=4, trs_np=TRS)
     assert df_idf["Intensidade_Gumbel_4h (mm/h)"].values == pytest.approx(df_idf["Gumbel_4h (mm)"].values / 4)
     assert df_idf["Intensidade_LP3_4h (mm/h)"].values == pytest.approx(df_idf["LP3_4h (mm)"].values / 4)
 
 def test_calculate_idf_curves_quantis_crescem_com_tr(maximas_anuais_exemplo):
     """A precipitacao estimada deve crescer com o periodo de retorno, nas duas distribuicoes."""
-    df_idf, _, _, _, _, _ = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
+    df_idf, _, _, _, _, _, _, _ = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
     assert np.all(np.diff(df_idf["Gumbel_1h (mm)"].values) > 0)
     assert np.all(np.diff(df_idf["LP3_1h (mm)"].values) > 0)
 
@@ -140,7 +141,7 @@ def test_calculate_idf_curves_quantil_gumbel_formula_fechada(maximas_anuais_exem
     O quantil de Gumbel tem forma fechada: x_T = mu - beta * ln(-ln(1 - 1/T)).
     A tabela deve ser coerente com os parametros (mu, beta) retornados.
     """
-    df_idf, params_gumbel, _, _, tupla_gumbel, _ = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
+    df_idf, params_gumbel, _, _, tupla_gumbel, _, _, _ = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
     mu, beta = tupla_gumbel
     assert (params_gumbel["mu"], params_gumbel["beta"]) == (mu, beta)
     esperado = mu - beta * np.log(-np.log(1 - 1 / TRS))
@@ -148,7 +149,7 @@ def test_calculate_idf_curves_quantil_gumbel_formula_fechada(maximas_anuais_exem
 
 def test_calculate_idf_curves_parametros_lp3_sao_momentos_do_log10(maximas_anuais_exemplo):
     """Os parametros da LP3 sao a media, o desvio padrao amostral e a assimetria do log10 da serie."""
-    _, _, params_lp3, _, _, tupla_lp3 = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
+    _, _, params_lp3, _, _, tupla_lp3, _, _ = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
     logs = np.log10(maximas_anuais_exemplo.values)
     n = len(logs)
     media = logs.sum() / n
@@ -162,7 +163,7 @@ def test_calculate_idf_curves_parametros_lp3_sao_momentos_do_log10(maximas_anuai
 
 def test_calculate_idf_curves_aderencia_gumbel(maximas_anuais_exemplo):
     """O ajuste Gumbel traz o p-valor do K-S e a estatistica/p-valor do Anderson-Darling."""
-    _, params_gumbel, _, _, _, _ = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
+    _, params_gumbel, _, _, _, _, _, _ = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
     assert 0.0 <= params_gumbel["ks_p"] <= 1.0
     assert params_gumbel["ad_stat"] >= 0.0
     assert 0.0 <= params_gumbel["ad_p"] <= 1.0
@@ -201,7 +202,7 @@ def test_chuva_projeto_cresce_com_tr():
 
 def test_chuva_projeto_coerente_com_a_tabela_idf(maximas_anuais_exemplo):
     """A chuva de projeto calculada com os parametros ajustados deve coincidir com a tabela IDF."""
-    df_idf, _, _, _, tupla_gumbel, tupla_lp3 = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
+    df_idf, _, _, _, tupla_gumbel, tupla_lp3, _, _ = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
     linha_tr25 = df_idf[df_idf["TR (anos)"] == 25].iloc[0]
     assert calcular_chuva_projeto(25, "Gumbel", tupla_gumbel, tupla_lp3) == pytest.approx(linha_tr25["Gumbel_1h (mm)"])
     assert calcular_chuva_projeto(25, "Log-Pearson III", tupla_gumbel, tupla_lp3) == pytest.approx(linha_tr25["LP3_1h (mm)"])
@@ -217,3 +218,66 @@ def test_chuva_projeto_metodo_invalido():
     """Um metodo desconhecido deve levantar ValueError."""
     with pytest.raises(ValueError):
         calcular_chuva_projeto(10, "Weibull", (50.0, 10.0), (1.5, 0.2, 0.0))
+
+
+# --- Testes para a distribuicao GEV ---
+
+def test_gev_parametros_e_aderencia(maximas_anuais_exemplo):
+    """O ajuste GEV traz forma (xi), posicao, escala e os testes de aderencia K-S e Anderson-Darling."""
+    resultado = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
+    params_gev, tupla_gev = resultado[6], resultado[7]
+    for chave in ("xi", "loc", "scale", "ks_p", "ad_stat", "ad_p"):
+        assert chave in params_gev
+    assert params_gev["scale"] > 0
+    assert 0.0 <= params_gev["ks_p"] <= 1.0
+    assert 0.0 <= params_gev["ad_p"] <= 1.0
+    assert tupla_gev == (params_gev["xi"], params_gev["loc"], params_gev["scale"])
+
+def test_gev_quantil_formula_fechada(maximas_anuais_exemplo):
+    """
+    Quantil da GEV na convencao xi: x_T = mu + (sigma / xi) * ((-ln(1 - 1/T))^(-xi) - 1).
+    A tabela deve ser coerente com os parametros retornados (isso tambem fixa o sinal de xi).
+    """
+    resultado = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
+    df_idf, (xi, mu, sigma) = resultado[0], resultado[7]
+    esperado = mu + (sigma / xi) * ((-np.log(1 - 1 / TRS)) ** (-xi) - 1)
+    assert df_idf["GEV_1h (mm)"].values == pytest.approx(esperado)
+    assert np.all(np.diff(df_idf["GEV_1h (mm)"].values) > 0)
+    assert df_idf["Intensidade_GEV_1h (mm/h)"].values == pytest.approx(df_idf["GEV_1h (mm)"].values)
+
+def test_gev_recupera_parametros_de_amostra_sintetica():
+    """Amostra grande gerada por uma GEV conhecida (xi=0.1, mu=60, sigma=15): o ajuste recupera os parametros."""
+    amostra = genextreme.rvs(-0.1, loc=60.0, scale=15.0, size=500, random_state=np.random.default_rng(11))
+    serie = pd.Series(amostra, index=range(500))
+    resultado = calculate_idf_curves(serie, duration=1, trs_np=TRS)
+    xi, mu, sigma = resultado[7]
+    assert xi == pytest.approx(0.1, abs=0.05)
+    assert mu == pytest.approx(60.0, rel=0.03)
+    assert sigma == pytest.approx(15.0, rel=0.06)
+    assert resultado[6]["ks_p"] > 0.05
+
+def test_chuva_projeto_gev_valor_conhecido():
+    """
+    xi=0.1, mu=50, sigma=10, TR=100 anos:
+    x = 50 + (10 / 0.1) * ((-ln(0.99))^(-0.1) - 1) = 50 + 100 * (1.58412 - 1) = 108.41 mm.
+    """
+    chuva = calcular_chuva_projeto(100, "GEV", None, None, gev_params=(0.1, 50.0, 10.0))
+    assert chuva == pytest.approx(108.41, abs=0.01)
+
+def test_chuva_projeto_gev_forma_nula_equivale_a_gumbel():
+    """Com xi = 0 a GEV se reduz a Gumbel de mesma posicao e escala."""
+    gev = calcular_chuva_projeto(25, "GEV", None, None, gev_params=(0.0, 50.0, 10.0))
+    gumbel = calcular_chuva_projeto(25, "Gumbel", (50.0, 10.0), None)
+    assert gev == pytest.approx(gumbel)
+
+def test_chuva_projeto_gev_coerente_com_a_tabela_idf(maximas_anuais_exemplo):
+    """A chuva de projeto pela GEV deve coincidir com a coluna GEV da tabela IDF."""
+    resultado = calculate_idf_curves(maximas_anuais_exemplo, duration=1, trs_np=TRS)
+    df_idf, tupla_gev = resultado[0], resultado[7]
+    linha_tr50 = df_idf[df_idf["TR (anos)"] == 50].iloc[0]
+    assert calcular_chuva_projeto(50, "GEV", None, None, gev_params=tupla_gev) == pytest.approx(linha_tr50["GEV_1h (mm)"])
+
+def test_chuva_projeto_gev_parametros_ausentes():
+    """Sem os parametros da GEV a funcao deve levantar ValueError."""
+    with pytest.raises(ValueError):
+        calcular_chuva_projeto(10, "GEV", (50.0, 10.0), (1.5, 0.2, 0.0))

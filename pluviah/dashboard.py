@@ -232,7 +232,8 @@ elif pagina_selecionada == "Curvas IDF":
             st.session_state['duracao_idf_calculada'] = duracao_idf
     
     if st.session_state.get('idf_results'):
-        df_idf, params_gumbel, params_lp3, _, gumbel_params_tuple, lp3_params_tuple = st.session_state.get('idf_results')
+        (df_idf, params_gumbel, params_lp3, _, gumbel_params_tuple, lp3_params_tuple,
+         params_gev, gev_params_tuple) = st.session_state.get('idf_results')
         
         duracao_calculada = st.session_state.get('duracao_idf_calculada')
 
@@ -242,12 +243,14 @@ elif pagina_selecionada == "Curvas IDF":
             st.session_state.update({
                 'gumbel_params_tuple': gumbel_params_tuple, 'lp3_params_tuple': lp3_params_tuple,
                 'df_idf': df_idf,
-                'params_gumbel': params_gumbel, 'params_lp3': params_lp3
+                'params_gumbel': params_gumbel, 'params_lp3': params_lp3,
+                'gev_params_tuple': gev_params_tuple, 'params_gev': params_gev
             })
 
             fig_idf = go.Figure()
             fig_idf.add_trace(go.Scatter(x=df_idf["TR (anos)"], y=df_idf[f"Gumbel_{duracao_calculada}h (mm)"], mode='lines+markers', name='Gumbel', line=dict(color='#D55E00')))
             fig_idf.add_trace(go.Scatter(x=df_idf["TR (anos)"], y=df_idf[f"LP3_{duracao_calculada}h (mm)"], mode='lines+markers', name='Log-Pearson III', line=dict(color='#0072B2')))
+            fig_idf.add_trace(go.Scatter(x=df_idf["TR (anos)"], y=df_idf[f"GEV_{duracao_calculada}h (mm)"], mode='lines+markers', name='GEV', line=dict(color='#009E73')))
             fig_idf.update_layout(
                 title=f"Precipitação Estimada vs. Período de Retorno (Duração: {duracao_calculada}h)",
                 xaxis_title="Período de Retorno (anos)", yaxis_title="Precipitação (mm)",
@@ -300,6 +303,21 @@ elif pagina_selecionada == "Curvas IDF":
                         delta="Boa aderência" if params_lp3['ad_p'] > 0.05 else "Aderência fraca",
                         delta_color="normal")
 
+            st.markdown("##### **Distribuição GEV (Generalizada de Valores Extremos)**")
+            col9, col10, col11 = st.columns(3)
+            col9.metric("Posição (μ)", f"{params_gev['loc']:.2f} mm")
+            col10.metric("Escala (σ)", f"{params_gev['scale']:.2f} mm")
+            col11.metric("Forma (ξ)", f"{params_gev['xi']:.3f}",
+                         help="ξ > 0: cauda pesada (Fréchet); ξ = 0: Gumbel; ξ < 0: cauda limitada (Weibull).")
+
+            col12, col13 = st.columns(2)
+            col12.metric("K-S (p-valor)", f"{params_gev['ks_p']:.3f}",
+                         delta="Boa aderência" if params_gev['ks_p'] > 0.05 else "Aderência fraca",
+                         delta_color="normal")
+            col13.metric("Anderson-Darling (p-valor)", f"{params_gev['ad_p']:.3f}",
+                         delta="Boa aderência" if params_gev['ad_p'] > 0.05 else "Aderência fraca",
+                         delta_color="normal")
+
 # --- ABA 3: CHUVA DE PROJETO ---
 elif pagina_selecionada == "Chuva de Projeto":
     st.markdown("## <i class='fas fa-cloud-showers-heavy'></i> Cálculo de Chuva de Projeto", unsafe_allow_html=True)
@@ -310,14 +328,16 @@ elif pagina_selecionada == "Chuva de Projeto":
             tr_tab4 = st.number_input("Período de Retorno (anos):", min_value=1, step=1, value=10)
             dur_tab4 = st.number_input("Duração da Chuva (horas):", min_value=0.1, step=0.1, value=1.0)
         with col2:
-            metodo_tab4 = st.radio("Método de Cálculo:", ["Gumbel", "Log-Pearson III"])
+            metodo_tab4 = st.radio("Método de Cálculo:", ["Gumbel", "Log-Pearson III", "GEV"])
 
         if st.button("Calcular Chuva de Projeto"):
             gumbel_params = st.session_state.get('gumbel_params_tuple')
             lp3_params = st.session_state.get('lp3_params_tuple')
+            gev_params = st.session_state.get('gev_params_tuple')
 
             if (metodo_tab4 == "Gumbel" and not gumbel_params) or \
-               (metodo_tab4 == "Log-Pearson III" and not lp3_params):
+               (metodo_tab4 == "Log-Pearson III" and not lp3_params) or \
+               (metodo_tab4 == "GEV" and not gev_params):
                 st.error("Parâmetros não encontrados. Por favor, calcule as Curvas IDF na página anterior primeiro.")
                 st.session_state['show_project_results'] = False
             else:
@@ -327,7 +347,7 @@ elif pagina_selecionada == "Chuva de Projeto":
 
                     chuva_proj = calcular_chuva_projeto(
                         tr=tr_tab4, metodo=metodo_tab4,
-                        gumbel_params=gumbel_params, lp3_params=lp3_params
+                        gumbel_params=gumbel_params, lp3_params=lp3_params, gev_params=gev_params
                     )
                     intensidade_proj = chuva_proj / dur_tab4 if dur_tab4 > 0 else 0
                     st.session_state['intensidade_proj_result'] = intensidade_proj
@@ -579,7 +599,8 @@ elif pagina_selecionada == "Relatório PDF":
                 "fig_path": st.session_state.get('grafico_path'),
                 "duracao": st.session_state.get('duracao_idf_calculada'),
                 "params_gumbel": st.session_state.get('params_gumbel'),
-                "params_lp3": st.session_state.get('params_lp3')
+                "params_lp3": st.session_state.get('params_lp3'),
+                "params_gev": st.session_state.get('params_gev')
             },
             "chuva_projeto": {
                 "intensidade": st.session_state.get('intensidade_proj_result'),

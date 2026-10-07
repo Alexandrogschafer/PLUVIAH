@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-from scipy.stats import gumbel_r, pearson3, kstest, anderson, goodness_of_fit
+from scipy.stats import gumbel_r, pearson3, genextreme, kstest, anderson, goodness_of_fit
 
 def _anderson_darling_gumbel(z):
     """Teste Anderson-Darling para Gumbel sobre dados padronizados. Retorna (estatistica, p-valor).
@@ -24,9 +24,9 @@ def calculate_annual_maxima(df, duration):
     return annual_maxima
 
 def calculate_idf_curves(series, duration, trs_np):
-    """Ajusta as distribuicoes Gumbel e Log-Pearson III e retorna os parametros."""
+    """Ajusta as distribuicoes Gumbel, Log-Pearson III e GEV e retorna os parametros."""
     if len(series) < 5:
-        return None, None, None, series, None, None
+        return None, None, None, series, None, None, None, None
 
     # --- Gumbel ---
     mu_g, beta_g = gumbel_r.fit(series.values)
@@ -54,12 +54,27 @@ def calculate_idf_curves(series, duration, trs_np):
         statistic='ad', rng=42
     )
 
+    # --- GEV (Generalizada de Valores Extremos) ---
+    # Ajuste por maxima verossimilhanca. O SciPy usa o parametro de forma c = -xi;
+    # aqui se reporta xi (convencao usual em hidrologia): xi > 0 cauda pesada (Frechet),
+    # xi = 0 Gumbel, xi < 0 cauda limitada (Weibull).
+    c_gev, loc_gev, scale_gev = genextreme.fit(series.values)
+    intensities_gev = [genextreme.ppf(1 - 1/tr, c_gev, loc=loc_gev, scale=scale_gev) for tr in trs_np]
+    _, ks_p_gev = kstest(series.values, 'genextreme', args=(c_gev, loc_gev, scale_gev))
+    ad_result_gev = goodness_of_fit(
+        genextreme, series.values,
+        known_params={"c": c_gev, "loc": loc_gev, "scale": scale_gev},
+        statistic='ad', rng=42
+    )
+
     df_idf = pd.DataFrame({
         "TR (anos)": trs_np,
         f"Gumbel_{duration}h (mm)": intensities_gumbel,
         f"LP3_{duration}h (mm)": intensities_lp3,
+        f"GEV_{duration}h (mm)": intensities_gev,
         f"Intensidade_Gumbel_{duration}h (mm/h)": np.array(intensities_gumbel) / duration,
-        f"Intensidade_LP3_{duration}h (mm/h)": np.array(intensities_lp3) / duration
+        f"Intensidade_LP3_{duration}h (mm/h)": np.array(intensities_lp3) / duration,
+        f"Intensidade_GEV_{duration}h (mm/h)": np.array(intensities_gev) / duration
     })
     
     params_gumbel = {
@@ -74,9 +89,16 @@ def calculate_idf_curves(series, duration, trs_np):
     gumbel_params_tuple = (mu_g, beta_g)
     lp3_params_tuple = (mean_log, std_log, skew)
 
-    return df_idf, params_gumbel, params_lp3, series, gumbel_params_tuple, lp3_params_tuple
+    params_gev = {
+        "xi": -c_gev, "loc": loc_gev, "scale": scale_gev,
+        "ks_p": ks_p_gev, "ad_stat": ad_result_gev.statistic, "ad_p": ad_result_gev.pvalue
+    }
+    gev_params_tuple = (-c_gev, loc_gev, scale_gev)
 
-def calcular_chuva_projeto(tr, metodo, gumbel_params, lp3_params):
+    return (df_idf, params_gumbel, params_lp3, series, gumbel_params_tuple, lp3_params_tuple,
+            params_gev, gev_params_tuple)
+
+def calcular_chuva_projeto(tr, metodo, gumbel_params, lp3_params, gev_params=None):
     """Calcula a precipitacao de projeto a partir dos parametros ajustados."""
     if metodo == "Gumbel":
         if not gumbel_params:
@@ -91,4 +113,10 @@ def calcular_chuva_projeto(tr, metodo, gumbel_params, lp3_params):
         dist_lp3 = pearson3(skew, loc=mean_log, scale=std_log)
         return 10 ** dist_lp3.ppf(1 - 1 / float(tr))
     
+    elif metodo == "GEV":
+        if not gev_params:
+            raise ValueError("Parametros GEV nao fornecidos.")
+        xi, loc, scale = gev_params
+        return genextreme.ppf(1 - 1 / float(tr), -xi, loc=loc, scale=scale)
+
     raise ValueError(f"Metodo de calculo '{metodo}' invalido.")

@@ -32,10 +32,19 @@ class PDF(FPDF):
         col_widths = [25] + [165 // (len(df.columns) -1)] * (len(df.columns)-1)
         headers = df.columns
         
+        # Reduz a fonte do cabecalho ate o titulo mais largo caber na sua coluna
+        tamanho_cabecalho = 10
+        while tamanho_cabecalho > 5 and any(
+            self.get_string_width(str(h)) > col_widths[i] - 2 for i, h in enumerate(headers)
+        ):
+            tamanho_cabecalho -= 0.5
+            self.set_font("Arial", '', tamanho_cabecalho)
+
         self.set_fill_color(220, 220, 220)
         for i, header in enumerate(headers):
             self.cell(col_widths[i], 8, str(header), 1, 0, 'C', 1)
         self.ln()
+        self.set_font("Arial", '', 10)
 
         for _, row in df.iterrows():
             for i, item in enumerate(row):
@@ -85,6 +94,20 @@ def _construir_pdf(dados_relatorio):
                 f"({'Aceito' if params.get('ad_p', 0) > 0.05 else 'Rejeitado'} a 5% de significância)"
             )
             pdf.chapter_body(texto_lp3)
+
+        if dados_idf.get('params_gev'):
+            params = dados_idf['params_gev']
+            texto_gev = (
+                f"Distribuição GEV (Generalizada de Valores Extremos):\n"
+                f"  - Parâmetro de Posição (mu): {params.get('loc', 0):.2f} mm\n"
+                f"  - Parâmetro de Escala (sigma): {params.get('scale', 0):.2f} mm\n"
+                f"  - Parâmetro de Forma (xi): {params.get('xi', 0):.3f}\n"
+                f"  - Teste K-S (p-valor): {params.get('ks_p', 0):.4f} "
+                f"({'Aceito' if params.get('ks_p', 0) > 0.05 else 'Rejeitado'} a 5% de significância)\n"
+                f"  - Teste Anderson-Darling (p-valor): {params.get('ad_p', 0):.4f} "
+                f"({'Aceito' if params.get('ad_p', 0) > 0.05 else 'Rejeitado'} a 5% de significância)"
+            )
+            pdf.chapter_body(texto_gev)
     
     pdf.add_page()
     
