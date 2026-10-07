@@ -6,16 +6,18 @@
 
 Plataforma de Análise Pluviométrica e Hidráulica
 
+**Versão 1.1.0**: veja as novidades e as mudanças que alteram resultados em relação à v1.0.0 no [CHANGELOG](CHANGELOG.md).
+
 O **PLUVIAH** é um software acadêmico-institucional desenvolvido em Python (Streamlit) para apoiar engenheiros, professores e estudantes no estudo de hidrologia e hidráulica.
 
 Ele integra, em um único ambiente:
 
 * Processamento de séries de precipitação horária
-* Ajuste de curvas IDF (Intensidade–Duração–Frequência)
+* Ajuste de curvas IDF (Intensidade–Duração–Frequência) com as distribuições Gumbel, Log-Pearson III e GEV, e testes de aderência
 * Estimativa de chuvas de projeto
-* Cálculo de tempo de concentração (Kirpich e Giandotti)
+* Cálculo de tempo de concentração (Kirpich e Giandotti), com alertas de faixa de aplicabilidade
 * Determinação da vazão de projeto (Método Racional)
-* Dimensionamento de condutos circulares e canais abertos (Manning)
+* Dimensionamento de condutos circulares (diâmetros comerciais) e canais abertos (Manning)
 * Geração de relatório consolidado em HTML/PDF
 
 ---
@@ -72,6 +74,7 @@ pluviah/         # Código-fonte principal
 docs/            # Documentação, manuais e imagens
 requirements.txt # Dependências do projeto
 README.md        # Apresentação do projeto
+CHANGELOG.md     # Histórico de versões
 LICENSE          # Licença MIT
 ```
 
