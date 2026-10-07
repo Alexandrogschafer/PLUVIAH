@@ -10,6 +10,10 @@ from manning import (
     geom_circular_parcial,
     q_manning_circular_parcial,
     razao_enchimento_conduto_circular,
+    froude,
+    y_normal,
+    y_critico,
+    b_para_Q,
 )
 
 # --- Testes para Canais Abertos (Trapezoidal/Retangular) ---
@@ -227,3 +231,69 @@ def test_razao_enchimento_vazao_acima_da_capacidade_plena():
 
     assert razao_yD is None
     assert dentro_criterio is False
+
+
+# --- Testes para as solucoes numericas (bissecao) em canais abertos ---
+
+def test_y_normal_canal_retangular_valor_conhecido():
+    """
+    Canal retangular b=2 m, S=0.001, n=0.013 com y=1 m:
+    A=2, P=4, R=0.5 -> Q = (1/0.013) * 2 * 0.5^(2/3) * 0.001^0.5 = 3.0648 m3/s.
+    Logo, a profundidade normal para Q=3.0648 deve ser 1.0 m.
+    """
+    yn = y_normal(3.0648, b=2.0, z=0.0, S=0.001, n=0.013)
+    assert yn == pytest.approx(1.0, abs=1e-4)
+
+def test_y_normal_canal_trapezoidal_satisfaz_manning():
+    """A profundidade normal encontrada deve reproduzir a vazao de projeto pela formula de Manning."""
+    Qd, b, z, S, n = 10.0, 3.0, 1.5, 0.0005, 0.025
+    yn = y_normal(Qd, b, z, S, n)
+    A, P, _ = geom_trapezio(b, z, yn)
+    assert manning_Q(A, P, S, n) == pytest.approx(Qd, rel=1e-4)
+
+def test_y_normal_comportamento_fisico():
+    """Maior vazao exige maior profundidade; maior declividade reduz a profundidade."""
+    y_base = y_normal(5.0, 2.0, 1.0, 0.001, 0.013)
+    assert y_normal(10.0, 2.0, 1.0, 0.001, 0.013) > y_base
+    assert y_normal(5.0, 2.0, 1.0, 0.01, 0.013) < y_base
+
+def test_y_normal_vazao_fora_do_intervalo_de_busca():
+    """Se a vazao nao pode ser atingida dentro de [y_min, y_max], nao ha raiz: retorna None."""
+    assert y_normal(1e9, 2.0, 0.0, 0.001, 0.013) is None
+
+def test_y_critico_canal_retangular_valor_conhecido():
+    """
+    Em canal retangular a profundidade critica tem solucao fechada: yc = (q^2 / g)^(1/3), q = Q/b.
+    Q=5, b=2 -> q=2.5 -> yc = (6.25 / 9.81)^(1/3) = 0.8605 m.
+    """
+    yc = y_critico(5.0, b=2.0, z=0.0)
+    assert yc == pytest.approx(0.8605, abs=1e-4)
+
+def test_y_critico_canal_trapezoidal_froude_unitario():
+    """Na profundidade critica o numero de Froude deve ser 1."""
+    Qd, b, z = 12.0, 3.0, 2.0
+    yc = y_critico(Qd, b, z)
+    A, _, T = geom_trapezio(b, z, yc)
+    assert froude(Qd, A, T) == pytest.approx(1.0, abs=1e-4)
+
+def test_y_critico_independe_de_declividade_e_cresce_com_a_vazao():
+    """A profundidade critica depende so da vazao e da geometria, e cresce com a vazao."""
+    assert y_critico(10.0, 2.0, 1.0) > y_critico(5.0, 2.0, 1.0)
+
+def test_b_para_Q_canal_retangular_valor_conhecido():
+    """Mesmo caso de referencia do y_normal: Q=3.0648, y=1, S=0.001, n=0.013 -> b=2.0 m."""
+    b = b_para_Q(3.0648, z=0.0, y=1.0, S=0.001, n=0.013)
+    assert b == pytest.approx(2.0, abs=1e-4)
+
+def test_b_para_Q_e_inverso_de_y_normal():
+    """A largura encontrada para (Q, y) deve devolver a mesma profundidade em y_normal."""
+    Qd, z, y, S, n = 8.0, 1.5, 1.2, 0.002, 0.017
+    b = b_para_Q(Qd, z, y, S, n)
+    assert y_normal(Qd, b, z, S, n) == pytest.approx(y, abs=1e-4)
+
+def test_b_para_Q_vazao_fora_do_intervalo_de_busca():
+    """
+    Canal triangular-limite (b -> b_min) com z=1.5 e y=1.2 ja conduz mais que 0.01 m3/s,
+    entao nao existe largura em [b_min, b_max] para essa vazao: retorna None.
+    """
+    assert b_para_Q(0.01, z=1.5, y=1.2, S=0.002, n=0.017) is None
