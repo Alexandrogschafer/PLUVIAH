@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-from scipy.stats import gumbel_r, pearson3, kstest, anderson
+from scipy.stats import gumbel_r, pearson3, kstest, anderson, goodness_of_fit
 
 def calculate_annual_maxima(df, duration):
     """Calcula as maximas anuais para uma dada duracao."""
@@ -31,6 +31,16 @@ def calculate_idf_curves(series, duration, trs_np):
     lp3_dist = pearson3(skew, loc=mean_log, scale=std_log)
     intensities_lp3 = [10 ** lp3_dist.ppf(1 - 1/tr) for tr in trs_np]
 
+    # Teste K-S: compara os dados em escala log10 (espaco onde a LP3 foi ajustada) com a distribuicao ajustada
+    _, ks_p_lp3 = kstest(dados_log, 'pearson3', args=(skew, mean_log, std_log))
+    # anderson() nao suporta 'pearson3' nativamente; goodness_of_fit calcula a estatistica AD
+    # e seu p-valor via simulacao de Monte Carlo (rng fixo para resultado reprodutivel)
+    ad_result_lp3 = goodness_of_fit(
+        pearson3, dados_log,
+        known_params={"skew": skew, "loc": mean_log, "scale": std_log},
+        statistic='ad', rng=42
+    )
+
     df_idf = pd.DataFrame({
         "TR (anos)": trs_np,
         f"Gumbel_{duration}h (mm)": intensities_gumbel,
@@ -43,7 +53,10 @@ def calculate_idf_curves(series, duration, trs_np):
         "mu": mu_g, "beta": beta_g, "ks_p": ks_p, 
         "ad_stat": ad_result.statistic, "ad_crit": ad_result.critical_values
     }
-    params_lp3 = {"mean_log": mean_log, "std_log": std_log, "skew": skew}
+    params_lp3 = {
+        "mean_log": mean_log, "std_log": std_log, "skew": skew,
+        "ks_p": ks_p_lp3, "ad_stat": ad_result_lp3.statistic, "ad_p": ad_result_lp3.pvalue
+    }
     
     gumbel_params_tuple = (mu_g, beta_g)
     lp3_params_tuple = (mean_log, std_log, skew)

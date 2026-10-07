@@ -291,6 +291,14 @@ elif pagina_selecionada == "Curvas IDF":
             col5.metric("Desvio Padrão (log10)", f"{params_lp3['std_log']:.3f}")
             col6.metric("Assimetria (log10)", f"{params_lp3['skew']:.3f}")
 
+            col7, col8 = st.columns(2)
+            col7.metric("K-S (p-valor)", f"{params_lp3['ks_p']:.3f}",
+                        delta="Boa aderência" if params_lp3['ks_p'] > 0.05 else "Aderência fraca",
+                        delta_color="normal")
+            col8.metric("Anderson-Darling (p-valor)", f"{params_lp3['ad_p']:.3f}",
+                        delta="Boa aderência" if params_lp3['ad_p'] > 0.05 else "Aderência fraca",
+                        delta_color="normal")
+
 # --- ABA 3: CHUVA DE PROJETO ---
 elif pagina_selecionada == "Chuva de Projeto":
     st.markdown("## <i class='fas fa-cloud-showers-heavy'></i> Cálculo de Chuva de Projeto", unsafe_allow_html=True)
