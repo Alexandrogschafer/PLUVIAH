@@ -67,3 +67,30 @@ Os erros da v1.0.0 eram três:
 Nesses casos a v1.0.0 subestimava o tempo de concentração. Como um tempo de concentração menor leva a uma intensidade de chuva maior, a vazão de projeto pelo Método Racional ficava superestimada.
 
 A comparação acima isola o efeito da expressão. Na prática a diferença depende também do dado de entrada, porque o campo de altura mudou de significado (item 3).
+
+## Curvas IDF
+
+### Testes de aderência
+
+Para cada distribuição ajustada (Gumbel, Log-Pearson III e GEV) o PLUVIAH apresenta o p-valor de dois testes de aderência: **Kolmogorov-Smirnov (K-S)** e **Anderson-Darling (A-D)**. O A-D dá mais peso às caudas da distribuição, que é a região de interesse para chuvas de projeto.
+
+**Procedimento.** Os p-valores são obtidos por simulação de Monte Carlo, com `scipy.stats.goodness_of_fit`:
+
+1. calcula-se a estatística do teste (K-S ou A-D) entre a série observada e a distribuição ajustada pelo PLUVIAH;
+2. sorteiam-se 999 amostras sintéticas, do mesmo tamanho da série, a partir da distribuição ajustada;
+3. em cada amostra sintética os parâmetros são **reestimados** (por máxima verossimilhança) e a estatística é recalculada contra essa nova distribuição;
+4. o p-valor é a fração de amostras sintéticas com estatística maior ou igual à observada, calculada como `(k + 1) / (N + 1)`.
+
+**Por que reestimar os parâmetros.** Os parâmetros são estimados na mesma série que depois é testada, então a distribuição ajustada fica naturalmente próxima dos dados. Os p-valores tabelados do K-S supõem parâmetros conhecidos de antemão e, nessa situação, saem otimistas (altos demais). Reestimar os parâmetros em cada amostra simulada reproduz esse efeito na distribuição de referência e corrige o p-valor.
+
+**Reprodutibilidade.** A semente do gerador é fixa: a mesma série produz sempre os mesmos p-valores. O número de amostras (`N_MC_ADERENCIA = 999`) e a semente (`SEMENTE_ADERENCIA = 42`) ficam em `pluviah/config.py`.
+
+**Leitura do resultado.** Adota-se o nível de significância de 5%: p-valor acima de 0,05 é apresentado como "Boa aderência" no painel e "Aceito" no relatório. Com 999 amostras o p-valor tem resolução de 0,001 e o menor valor possível é 0,001.
+
+**Observações.**
+
+- Na Log-Pearson III o teste é feito sobre o log10 da série, que é o espaço em que a distribuição é ajustada. Os parâmetros usados nos quantis vêm do método dos momentos; nas amostras simuladas a reestimação é por máxima verossimilhança.
+- O cálculo leva em torno de 40 segundos por duração, quase todo gasto nos ajustes da GEV e da Log-Pearson III. O resultado fica em cache para a mesma série e duração.
+
+**Mudança em relação à v1.0.0.** A v1.0.0 apresentava apenas o K-S de Gumbel, com o p-valor tabelado (parâmetros tratados como conhecidos). Os p-valores da v1.1.0 são calculados pelo procedimento acima e, por isso, diferem dos da v1.0.0 para a mesma série.
+

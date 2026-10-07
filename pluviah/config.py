@@ -4,6 +4,11 @@
 G = 9.81      # Aceleração da gravidade (m/s²)
 RHO = 1000.0  # Densidade da água (kg/m³)
 
+# Testes de aderência (K-S e Anderson-Darling) por Monte Carlo, com os parâmetros
+# reestimados em cada amostra simulada (scipy.stats.goodness_of_fit)
+N_MC_ADERENCIA = 999     # número de amostras simuladas; o p-valor tem resolução de 1/(N+1)
+SEMENTE_ADERENCIA = 42   # semente fixa, para resultados reprodutíveis
+
 # Faixas de aplicabilidade dos métodos de tempo de concentração (mínimo, máximo)
 # Fonte: Kirpich (1940) e Giandotti (1934), conforme Silveira (2005), RBRH v.10, p.75-89
 KIRPICH_FAIXA_AREA_KM2 = (0.005, 0.45)

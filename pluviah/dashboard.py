@@ -23,7 +23,9 @@ from manning import (
     y_normal, y_critico, b_para_Q, razao_enchimento_conduto_circular
 )
 from relatorio import gerar_pdf_bytes
-from config import MATERIAIS_MANNING, G, RHO, DIAMETROS_COMERCIAIS_CONCRETO_MM, GIANDOTTI_FAIXA_AREA_KM2
+from config import (
+    MATERIAIS_MANNING, G, RHO, DIAMETROS_COMERCIAIS_CONCRETO_MM, GIANDOTTI_FAIXA_AREA_KM2, N_MC_ADERENCIA
+)
 
 
 # =============================================================================
@@ -227,7 +229,7 @@ elif pagina_selecionada == "Curvas IDF":
     
     if st.button("Calcular Curvas IDF e Ajuste Estatístico"):
         trs = np.array([2, 5, 10, 25, 50, 100])
-        with st.spinner(f"Ajustando curvas para {duracao_idf}h..."):
+        with st.spinner(f"Ajustando curvas para {duracao_idf}h e calculando os testes de aderência por Monte Carlo (pode levar cerca de 1 minuto)..."):
             series_maximas = cached_calculate_annual_maxima(st.session_state.df, duracao_idf)
             results = cached_calculate_idf_curves(series_maximas, duracao_idf, trs)
             st.session_state['idf_results'] = results
@@ -282,13 +284,20 @@ elif pagina_selecionada == "Curvas IDF":
             
             st.divider()
             st.subheader("Parâmetros do Ajuste Estatístico")
+            st.caption(
+                f"Testes de aderência K-S e Anderson-Darling: p-valores por Monte Carlo ({N_MC_ADERENCIA} amostras, semente fixa), "
+                "com os parâmetros reestimados em cada amostra simulada."
+            )
             
             st.markdown("##### **Distribuição Gumbel**")
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
             col1.metric("Posição (μ)", f"{params_gumbel['mu']:.2f} mm")
             col2.metric("Escala (β)", f"{params_gumbel['beta']:.2f} mm")
-            col3.metric("K-S (p-valor)", f"{params_gumbel['ks_p']:.3f}", 
-                        delta="Boa aderência" if params_gumbel['ks_p'] > 0.05 else "Aderência fraca", 
+            col1.metric("K-S (p-valor)", f"{params_gumbel['ks_p']:.3f}",
+                        delta="Boa aderência" if params_gumbel['ks_p'] > 0.05 else "Aderência fraca",
+                        delta_color="normal")
+            col2.metric("Anderson-Darling (p-valor)", f"{params_gumbel['ad_p']:.3f}",
+                        delta="Boa aderência" if params_gumbel['ad_p'] > 0.05 else "Aderência fraca",
                         delta_color="normal")
             
             st.markdown("##### **Distribuição Log-Pearson III**")

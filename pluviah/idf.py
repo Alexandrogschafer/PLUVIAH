@@ -2,20 +2,27 @@
 
 import pandas as pd
 import numpy as np
-from scipy.stats import gumbel_r, pearson3, genextreme, kstest, anderson, goodness_of_fit
+from scipy.stats import gumbel_r, pearson3, genextreme, goodness_of_fit
+from config import N_MC_ADERENCIA, SEMENTE_ADERENCIA
 
-def _anderson_darling_gumbel(z):
-    """Teste Anderson-Darling para Gumbel sobre dados padronizados. Retorna (estatistica, p-valor).
-    O p-valor e interpolado da tabela de valores criticos, portanto limitado a [0.01, 0.25]."""
-    try:
-        # SciPy >= 1.17: `method` e obrigatorio a partir do 1.19
-        res = anderson(z, dist='gumbel_r', method='interpolate')
-        return res.statistic, res.pvalue
-    except TypeError:
-        # SciPy < 1.17: sem o parametro `method`; interpola na tabela de valores criticos
-        res = anderson(z, dist='gumbel_r')
-        p = np.interp(res.statistic, res.critical_values, res.significance_level / 100.0)
-        return res.statistic, p
+def _teste_aderencia(dist, dados, params_ajustados, n_mc):
+    """
+    Testes de aderencia K-S e Anderson-Darling por Monte Carlo (scipy.stats.goodness_of_fit).
+
+    A estatistica dos dados e calculada contra a distribuicao ajustada (params_ajustados).
+    Em cada amostra simulada os parametros sao reestimados, de modo que o p-valor leva em
+    conta que eles foram estimados na propria amostra (sem isso o p-valor sai otimista).
+    A semente e fixa (config.SEMENTE_ADERENCIA) para o resultado ser reprodutivel.
+    """
+    resultado = {}
+    for estatistica in ("ks", "ad"):
+        res = goodness_of_fit(
+            dist, dados, fit_params=params_ajustados, guessed_params=params_ajustados,
+            statistic=estatistica, n_mc_samples=n_mc, rng=SEMENTE_ADERENCIA
+        )
+        resultado[f"{estatistica}_stat"] = res.statistic
+        resultado[f"{estatistica}_p"] = res.pvalue
+    return resultado
 
 def calculate_annual_maxima(df, duration):
     """Calcula as maximas anuais para uma dada duracao."""
@@ -23,16 +30,17 @@ def calculate_annual_maxima(df, duration):
     annual_maxima = accumulated.groupby(df.index.year).max().dropna()
     return annual_maxima
 
-def calculate_idf_curves(series, duration, trs_np):
-    """Ajusta as distribuicoes Gumbel, Log-Pearson III e GEV e retorna os parametros."""
+def calculate_idf_curves(series, duration, trs_np, n_mc=N_MC_ADERENCIA):
+    """
+    Ajusta as distribuicoes Gumbel, Log-Pearson III e GEV e retorna os parametros.
+    n_mc e o numero de amostras de Monte Carlo dos testes de aderencia.
+    """
     if len(series) < 5:
         return None, None, None, series, None, None, None, None
 
     # --- Gumbel ---
     mu_g, beta_g = gumbel_r.fit(series.values)
-    _, ks_p = kstest(series.values, 'gumbel_r', args=(mu_g, beta_g))
-    # Teste Anderson-Darling é mais sensível nas caudas da distribuição
-    ad_stat, ad_p = _anderson_darling_gumbel((series.values - mu_g) / beta_g)
+    aderencia_gumbel = _teste_aderencia(gumbel_r, series.values, {"loc": mu_g, "scale": beta_g}, n_mc)
     intensities_gumbel = [gumbel_r.ppf(1 - 1/tr, loc=mu_g, scale=beta_g) for tr in trs_np]
     
     # --- Log-Pearson III ---
@@ -44,14 +52,9 @@ def calculate_idf_curves(series, duration, trs_np):
     lp3_dist = pearson3(skew, loc=mean_log, scale=std_log)
     intensities_lp3 = [10 ** lp3_dist.ppf(1 - 1/tr) for tr in trs_np]
 
-    # Teste K-S: compara os dados em escala log10 (espaco onde a LP3 foi ajustada) com a distribuicao ajustada
-    _, ks_p_lp3 = kstest(dados_log, 'pearson3', args=(skew, mean_log, std_log))
-    # anderson() nao suporta 'pearson3' nativamente; goodness_of_fit calcula a estatistica AD
-    # e seu p-valor via simulacao de Monte Carlo (rng fixo para resultado reprodutivel)
-    ad_result_lp3 = goodness_of_fit(
-        pearson3, dados_log,
-        known_params={"skew": skew, "loc": mean_log, "scale": std_log},
-        statistic='ad', rng=42
+    # Aderencia em escala log10, o espaco onde a LP3 foi ajustada
+    aderencia_lp3 = _teste_aderencia(
+        pearson3, dados_log, {"skew": skew, "loc": mean_log, "scale": std_log}, n_mc
     )
 
     # --- GEV (Generalizada de Valores Extremos) ---
@@ -60,11 +63,8 @@ def calculate_idf_curves(series, duration, trs_np):
     # xi = 0 Gumbel, xi < 0 cauda limitada (Weibull).
     c_gev, loc_gev, scale_gev = genextreme.fit(series.values)
     intensities_gev = [genextreme.ppf(1 - 1/tr, c_gev, loc=loc_gev, scale=scale_gev) for tr in trs_np]
-    _, ks_p_gev = kstest(series.values, 'genextreme', args=(c_gev, loc_gev, scale_gev))
-    ad_result_gev = goodness_of_fit(
-        genextreme, series.values,
-        known_params={"c": c_gev, "loc": loc_gev, "scale": scale_gev},
-        statistic='ad', rng=42
+    aderencia_gev = _teste_aderencia(
+        genextreme, series.values, {"c": c_gev, "loc": loc_gev, "scale": scale_gev}, n_mc
     )
 
     df_idf = pd.DataFrame({
@@ -78,20 +78,17 @@ def calculate_idf_curves(series, duration, trs_np):
     })
     
     params_gumbel = {
-        "mu": mu_g, "beta": beta_g, "ks_p": ks_p,
-        "ad_stat": ad_stat, "ad_p": ad_p
+        "mu": mu_g, "beta": beta_g, **aderencia_gumbel
     }
     params_lp3 = {
-        "mean_log": mean_log, "std_log": std_log, "skew": skew,
-        "ks_p": ks_p_lp3, "ad_stat": ad_result_lp3.statistic, "ad_p": ad_result_lp3.pvalue
+        "mean_log": mean_log, "std_log": std_log, "skew": skew, **aderencia_lp3
     }
     
     gumbel_params_tuple = (mu_g, beta_g)
     lp3_params_tuple = (mean_log, std_log, skew)
 
     params_gev = {
-        "xi": -c_gev, "loc": loc_gev, "scale": scale_gev,
-        "ks_p": ks_p_gev, "ad_stat": ad_result_gev.statistic, "ad_p": ad_result_gev.pvalue
+        "xi": -c_gev, "loc": loc_gev, "scale": scale_gev, **aderencia_gev
     }
     gev_params_tuple = (-c_gev, loc_gev, scale_gev)
 

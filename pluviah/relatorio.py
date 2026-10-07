@@ -77,7 +77,9 @@ def _construir_pdf(dados_relatorio):
                 f"  - Parâmetro de Posição (mu): {params.get('mu', 0):.2f} mm\n"
                 f"  - Parâmetro de Escala (beta): {params.get('beta', 0):.2f} mm\n"
                 f"  - Teste K-S (p-valor): {params.get('ks_p', 0):.4f} "
-                f"({'Aceito' if params.get('ks_p', 0) > 0.05 else 'Rejeitado'} a 5% de significância)"
+                f"({'Aceito' if params.get('ks_p', 0) > 0.05 else 'Rejeitado'} a 5% de significância)\n"
+                f"  - Teste Anderson-Darling (p-valor): {params.get('ad_p', 0):.4f} "
+                f"({'Aceito' if params.get('ad_p', 0) > 0.05 else 'Rejeitado'} a 5% de significância)"
             )
             pdf.chapter_body(texto_gumbel)
 
