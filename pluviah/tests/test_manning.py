@@ -159,6 +159,43 @@ def test_dimensionar_conduto_nao_encontrado():
     assert dn_mm is None
     assert Q_calc is None
 
+def test_dimensionar_conduto_sobe_o_dn_para_atender_o_enchimento():
+    """
+    Q=0.37 m³/s, n=0.013, S=0.01: o DN 500 tem capacidade (0.378 m³/s), mas trabalha com
+    y/D ~= 0.80. Com critério de 0.85 ele serve; com critério de 0.75 é preciso o DN 600.
+    """
+    n, S = 0.013, 0.01
+    assert dimensionar_conduto_circular(0.37, n, S, criterio_yD=0.85)[0] == 500
+    assert dimensionar_conduto_circular(0.37, n, S, criterio_yD=0.75)[0] == 600
+    # Sem o critério de enchimento, vale só a capacidade a seção cheia
+    assert dimensionar_conduto_circular(0.37, n, S, criterio_yD=None)[0] == 500
+
+def test_dimensionar_conduto_resultado_atende_as_duas_condicoes():
+    """O DN adotado sempre tem capacidade >= Q e y/D <= critério, e o DN anterior da série falha em uma delas."""
+    n, S = 0.013, 0.01
+    serie = DIAMETROS_COMERCIAIS_CONCRETO_MM
+    for Q_projeto in (0.05, 0.2, 0.37, 1.0, 3.0, 8.0):
+        for criterio in (0.5, 0.75, 0.85):
+            dn_mm, Q_calc = dimensionar_conduto_circular(Q_projeto, n, S, criterio_yD=criterio)
+            razao, dentro = razao_enchimento_conduto_circular(Q_projeto, dn_mm / 1000.0, n, S, criterio_max=criterio)
+            assert Q_calc >= Q_projeto
+            assert dentro and razao <= criterio
+
+            indice = serie.index(dn_mm)
+            if indice > 0:
+                d_anterior = serie[indice - 1] / 1000.0
+                tem_capacidade = q_manning_circular_cheia(d_anterior, n, S) >= Q_projeto
+                _, dentro_anterior = razao_enchimento_conduto_circular(Q_projeto, d_anterior, n, S, criterio_max=criterio)
+                assert not (tem_capacidade and dentro_anterior)
+
+def test_dimensionar_conduto_enchimento_nao_atendido_por_nenhum_dn():
+    """
+    Q=14 m³/s cabe no DN 2000 a seção cheia (15.2 m³/s), mas com y/D ~= 0.76.
+    Com critério de 0.75 nenhum diâmetro da série atende: retorna (None, None).
+    """
+    assert dimensionar_conduto_circular(14.0, 0.013, 0.01, criterio_yD=0.85)[0] == 2000
+    assert dimensionar_conduto_circular(14.0, 0.013, 0.01, criterio_yD=0.75) == (None, None)
+
 def test_diametro_teorico_circular_valor_conhecido():
     """
     Q=0.3 m³/s, n=0.013, S=0.01:

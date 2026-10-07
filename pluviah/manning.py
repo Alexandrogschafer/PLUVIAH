@@ -22,18 +22,27 @@ def diametro_teorico_circular(Q_projeto, n, S):
         return 0.0
     return ((4.0 ** (5.0 / 3.0)) * n * Q_projeto / (math.pi * S ** 0.5)) ** (3.0 / 8.0)
 
-def dimensionar_conduto_circular(Q_projeto, n, S, diametros_mm=DIAMETROS_COMERCIAIS_CONCRETO_MM, d_min_mm=300):
+def dimensionar_conduto_circular(Q_projeto, n, S, diametros_mm=DIAMETROS_COMERCIAIS_CONCRETO_MM,
+                                 d_min_mm=300, criterio_yD=0.85):
     """
-    Escolhe o menor diametro nominal comercial (>= d_min_mm) cuja capacidade a secao
-    cheia atende a vazao de projeto. Retorna (dn_mm, q_capacidade), ou (None, None) se
-    nem o maior diametro da serie atende.
+    Escolhe o menor diametro nominal comercial (>= d_min_mm) que atende as duas condicoes:
+      1. capacidade a secao cheia >= vazao de projeto;
+      2. razao de enchimento na vazao de projeto y/D <= criterio_yD
+         (criterio_yD=None desliga esta segunda condicao).
+    Retorna (dn_mm, q_capacidade), ou (None, None) se nenhum diametro da serie atende.
     """
     for dn_mm in sorted(diametros_mm):
         if dn_mm < d_min_mm:
             continue
-        q_est = q_manning_circular_cheia(dn_mm / 1000.0, n, S)
-        if q_est >= Q_projeto:
-            return dn_mm, q_est
+        d = dn_mm / 1000.0
+        q_est = q_manning_circular_cheia(d, n, S)
+        if q_est < Q_projeto:
+            continue
+        if criterio_yD is not None:
+            _, dentro_criterio = razao_enchimento_conduto_circular(Q_projeto, d, n, S, criterio_max=criterio_yD)
+            if not dentro_criterio:
+                continue
+        return dn_mm, q_est
     return None, None
 
 # Razao y/D onde a vazao de um conduto circular parcialmente cheio atinge seu pico

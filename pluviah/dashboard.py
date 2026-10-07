@@ -473,19 +473,26 @@ elif pagina_selecionada == "Condutos Circulares":
         criterio_yD = c4.number_input(
             "Critério de projeto — enchimento máximo (y/D)",
             min_value=0.10, max_value=1.00, value=0.85, step=0.05, format="%.2f",
-            help="Razão máxima de enchimento aceita para a vazão de projeto (comumente 0,85 para evitar escoamento próximo à seção plena)."
+            help="Razão máxima de enchimento aceita para a vazão de projeto (comumente 0,85 para evitar escoamento próximo à seção plena). O diâmetro adotado é o menor da série que atende à capacidade e a este critério."
         )
 
     if st.button("Dimensionar Conduto"):
         if Q > 0:
             d_teorico = diametro_teorico_circular(Q, n, S)
-            dn_mm, Q_calc = dimensionar_conduto_circular(Q, n, S, d_min_mm=d_min_mm)
+            dn_mm, Q_calc = dimensionar_conduto_circular(Q, n, S, d_min_mm=d_min_mm, criterio_yD=criterio_yD)
+            # DN que bastaria so pela capacidade a secao cheia, para informar quando o y/D exige um maior
+            dn_capacidade, _ = dimensionar_conduto_circular(Q, n, S, d_min_mm=d_min_mm, criterio_yD=None)
 
             if dn_mm:
                 d_rec = dn_mm / 1000.0
                 st.success(f"**Diâmetro comercial adotado: DN {dn_mm}** (diâmetro teórico mínimo: {d_teorico * 1000:.0f} mm)")
                 if d_teorico * 1000 < d_min_mm:
                     st.info(f"O diâmetro teórico é menor que o mínimo de projeto; adotado o mínimo (DN {d_min_mm}).")
+                if dn_capacidade and dn_capacidade < dn_mm:
+                    st.info(
+                        f"O DN {dn_capacidade} atende à capacidade a seção cheia, mas excede o enchimento máximo "
+                        f"(y/D ≤ {criterio_yD:.2f}); adotado o DN {dn_mm}."
+                    )
                 A = (math.pi / 4.0) * d_rec**2
                 R = d_rec / 4.0
                 tau = tau_medio(R, S)
@@ -508,7 +515,7 @@ elif pagina_selecionada == "Condutos Circulares":
                     if dentro_criterio:
                         c2.success(f"Dentro do critério de projeto (y/D ≤ {criterio_yD:.2f}).")
                     else:
-                        c2.warning(f"Acima do critério de projeto (y/D ≤ {criterio_yD:.2f}). Considere um diâmetro maior.")
+                        c2.warning(f"Acima do critério de projeto (y/D ≤ {criterio_yD:.2f}).")
                 else:
                     st.warning("Não foi possível calcular a razão de enchimento (y/D) para esta combinação de parâmetros.")
 
@@ -522,9 +529,14 @@ elif pagina_selecionada == "Condutos Circulares":
             else:
                 dn_max = max(DIAMETROS_COMERCIAIS_CONCRETO_MM)
                 Q_max = q_manning_circular_cheia(dn_max / 1000.0, n, S)
+                if Q > Q_max:
+                    motivo = (f"**A vazão de projeto ({Q:.3f} m³/s) excede a capacidade do maior diâmetro da série "
+                              f"(DN {dn_max}: {Q_max:.3f} m³/s).**")
+                else:
+                    motivo = (f"**Nenhum diâmetro da série atende ao enchimento máximo (y/D ≤ {criterio_yD:.2f}) "
+                              f"para a vazão de projeto ({Q:.3f} m³/s)**, embora o DN {dn_max} tenha capacidade a seção cheia de {Q_max:.3f} m³/s.")
                 st.error(
-                    f"**A vazão de projeto ({Q:.3f} m³/s) excede a capacidade do maior diâmetro da série (DN {dn_max}: {Q_max:.3f} m³/s).** "
-                    f"O diâmetro teórico mínimo seria de {d_teorico * 1000:.0f} mm. "
+                    f"{motivo} O diâmetro teórico mínimo seria de {d_teorico * 1000:.0f} mm. "
                     "Nenhum conduto foi dimensionado: considere condutos em paralelo, maior declividade ou outra seção (ex.: galeria celular ou canal aberto)."
                 )
                 # Remove um dimensionamento anterior para que ele nao va parar no relatorio PDF
