@@ -2,53 +2,51 @@
 
 ## Tempo de concentração
 
-### Método de Giandotti: variante implementada
+### Método de Giandotti
 
-O PLUVIAH calcula o tempo de concentração de Giandotti por uma **variante simplificada** da fórmula, e não pela forma clássica. As duas dão resultados diferentes, por isso o usuário deve saber qual está usando.
-
-**Variante implementada** (`calcular_tc_giandotti`, em `pluviah/tc.py`):
+O PLUVIAH calcula o tempo de concentração de Giandotti (1934) pela expressão:
 
 ```
-tc (h) = (4·A + 1,5·L) / (0,8·ΔH)
-```
-
-**Forma clássica** encontrada na literatura:
-
-```
-tc (h) = (4·√A + 1,5·L) / (0,8·√Hm)
+Tc (h) = (4·√A + 1,5·L) / (0,8·√H)
 ```
 
 | Símbolo | Significado | Unidade |
 |---|---|---|
 | `A` | área da bacia | km² |
-| `L` | comprimento do percurso (talvegue principal) | km |
-| `ΔH` | desnível total da bacia: cota máxima menos cota mínima | m |
-| `Hm` | altura média da bacia acima da seção de controle | m |
+| `L` | comprimento do talvegue principal | km |
+| `H` | altitude média da bacia menos a cota do exutório | m |
 
-O painel devolve o resultado em minutos (`tc (h) × 60`).
+No painel, `H` é obtido de dois campos: **altitude média da bacia** e **cota do exutório**. O cálculo só é feito se `H > 0`. O resultado é apresentado em minutos (`Tc (h) × 60`).
 
-### Diferenças em relação à forma clássica
+Exemplo: A = 10 km², L = 5 km, H = 100 m.
 
-1. A área entra **sem raiz quadrada** (`4·A` em vez de `4·√A`).
-2. O denominador usa o desnível **sem raiz quadrada** (`0,8·ΔH` em vez de `0,8·√Hm`).
-3. O desnível usado é o **desnível total** (cota máxima − cota mínima), informado no painel pelas duas cotas, e não a altura média acima do exutório.
+```
+Tc = (4·√10 + 1,5·5) / (0,8·√100) = (12,649 + 7,5) / 8 = 2,519 h = 151,1 min
+```
 
-Com isso a variante não é uma reescrita da forma clássica: os valores diferem, e a diferença muda com o tamanho e o relevo da bacia.
+### Correção em relação à v1.0.0
 
-### Comparação numérica
+A v1.0.0 calculava o método de Giandotti com uma **fórmula incorreta**, corrigida na v1.1.0:
 
-Para a comparação, a forma clássica foi calculada com `Hm = ΔH`.
+```
+v1.0.0 (incorreta):  Tc (h) = (4·A + 1,5·L) / (0,8·ΔH)
+v1.1.0 (corrigida):  Tc (h) = (4·√A + 1,5·L) / (0,8·√H)
+```
 
-| A (km²) | L (km) | ΔH (m) | Variante implementada (min) | Forma clássica (min) |
+Os erros da v1.0.0 eram três:
+
+1. a área entrava sem a raiz quadrada (`4·A` em vez de `4·√A`);
+2. a altura entrava sem a raiz quadrada (`0,8·ΔH` em vez de `0,8·√H`);
+3. a altura usada era o desnível total da bacia (cota máxima menos cota mínima), e não a altitude média menos a cota do exutório.
+
+**Os resultados mudam.** Tempos de concentração de Giandotti obtidos na v1.0.0 devem ser recalculados. Comparação com a mesma altura nas duas expressões:
+
+| A (km²) | L (km) | Altura (m) | v1.0.0, incorreta (min) | v1.1.0, corrigida (min) |
 |---|---|---|---|---|
 | 0,5 | 1 | 50 | 5,2 | 45,9 |
 | 10 | 5 | 100 | 35,6 | 151,1 |
 | 200 | 30 | 300 | 211,2 | 439,8 |
 
-Nos três casos a variante implementada resulta em tempo de concentração **menor** que o da forma clássica. Um tempo de concentração menor leva a uma intensidade de chuva maior e, pelo Método Racional, a uma vazão de projeto maior.
+Nesses casos a v1.0.0 subestimava o tempo de concentração. Como um tempo de concentração menor leva a uma intensidade de chuva maior, a vazão de projeto pelo Método Racional ficava superestimada.
 
-### Recomendação de uso
-
-- Ao reportar um resultado obtido no PLUVIAH, identifique o método como "Giandotti (variante do PLUVIAH)" e cite a expressão acima.
-- Para comparar com valores de outras fontes ou programas, confira qual forma da fórmula foi usada.
-- O valor de referência coberto pelos testes automatizados é A = 10 km², L = 5 km, ΔH = 100 m, que resulta em 35,625 min (`pluviah/tests/test_tc.py`).
+A comparação acima isola o efeito da expressão. Na prática a diferença depende também do dado de entrada, porque o campo de altura mudou de significado (item 3).

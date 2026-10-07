@@ -392,17 +392,17 @@ elif pagina_selecionada == "Tempo de Concentração":
             with c2:
                 L_giandotti = st.number_input("Comprimento do percurso (km)", min_value=0.10, value=1.00)
             with c3:
-                Hmax = st.number_input("Cota máxima da bacia (m)", value=120.0)
+                H_media = st.number_input("Altitude média da bacia (m)", value=120.0)
             with c4:
-                Hmin = st.number_input("Cota mínima da bacia (m)", value=100.0)
+                H_exutorio = st.number_input("Cota do exutório (m)", value=100.0)
         if st.button("Calcular Tc (Giandotti)"):
-            deltaH = Hmax - Hmin
-            if deltaH > 0:
-                tc_min = calcular_tc_giandotti(A_giandotti, L_giandotti, deltaH)
+            H_giandotti = H_media - H_exutorio
+            if H_giandotti > 0:
+                tc_min = calcular_tc_giandotti(A_giandotti, L_giandotti, H_giandotti)
                 st.success(f"Tempo de concentração (Giandotti): **{tc_min:.2f} minutos**")
                 st.session_state["tc_min"] = tc_min
             else:
-                st.warning("A cota máxima deve ser maior que a mínima.")
+                st.warning("A altitude média da bacia deve ser maior que a cota do exutório (H > 0).")
 
 # --- ABA 5: VAZÃO DE PROJETO ---
 elif pagina_selecionada == "Vazão de Projeto":

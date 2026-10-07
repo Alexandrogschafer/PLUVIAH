@@ -39,10 +39,29 @@ def test_giandotti_calculo_correto():
     """
     A_km2 = 10
     L_km = 5
-    deltaH_m = 100
-    # Valor esperado: ( (4 * 10 + 1.5 * 5) / (0.8 * 100) ) * 60 ≈ 35.625 minutos
-    resultado_esperado = 35.625
+    H_m = 100  # altitude média da bacia menos a cota do exutório
+    # Valor esperado: (4 * sqrt(10) + 1.5 * 5) / (0.8 * sqrt(100)) * 60
+    #               = (12.649 + 7.5) / 8 * 60 ≈ 151.12 minutos
+    resultado_esperado = 151.12
 
-    tc_calculado = calcular_tc_giandotti(A_km2, L_km, deltaH_m)
-    
+    tc_calculado = calcular_tc_giandotti(A_km2, L_km, H_m)
+
     assert tc_calculado == pytest.approx(resultado_esperado, rel=1e-3)
+
+def test_giandotti_comportamento_fisico():
+    """
+    Bacia maior ou talvegue mais longo aumentam o Tc; maior altura média o reduz.
+    """
+    tc_base = calcular_tc_giandotti(10, 5, 100)
+
+    assert calcular_tc_giandotti(40, 5, 100) > tc_base
+    assert calcular_tc_giandotti(10, 10, 100) > tc_base
+    assert calcular_tc_giandotti(10, 5, 400) < tc_base
+
+def test_giandotti_entrada_invalida():
+    """
+    Área, comprimento ou altura não positivos retornam 0.
+    """
+    assert calcular_tc_giandotti(10, 5, 0) == 0.0
+    assert calcular_tc_giandotti(10, 5, -20) == 0.0
+    assert calcular_tc_giandotti(0, 5, 100) == 0.0
