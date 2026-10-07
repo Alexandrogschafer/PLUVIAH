@@ -2,6 +2,23 @@
 
 ## Tempo de concentração
 
+### Faixas de aplicabilidade
+
+Os métodos de tempo de concentração são empíricos e valem para o tipo de bacia em que foram ajustados. O PLUVIAH compara os dados informados com as faixas abaixo e exibe um alerta quando algum deles está fora. O alerta **não bloqueia o cálculo**: o resultado é apresentado e cabe ao usuário avaliá-lo.
+
+| Método | Grandeza | Faixa |
+|---|---|---|
+| Kirpich (1940) | área da bacia | 0,005 a 0,45 km² |
+| Kirpich (1940) | declividade | 0,02 a 0,09 m/m |
+| Kirpich (1940) | comprimento do curso d'água | 0,10 a 1,19 km |
+| Giandotti (1934) | área da bacia | 170 a 70.000 km² |
+
+Fonte: Kirpich (1940) e Giandotti (1934), conforme Silveira (2005), RBRH v.10, p.75-89. Os limites ficam em `pluviah/config.py`.
+
+A área da bacia não entra na fórmula de Kirpich; a aba a solicita apenas para essa verificação.
+
+O método de Giandotti foi desenvolvido para bacias maiores e está fora do escopo de microdrenagem. Ele permanece no PLUVIAH para comparação didática, e a aba informa isso.
+
 ### Método de Giandotti
 
 O PLUVIAH calcula o tempo de concentração de Giandotti (1934) pela expressão:

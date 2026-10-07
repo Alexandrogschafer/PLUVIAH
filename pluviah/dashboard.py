@@ -13,7 +13,9 @@ from streamlit_option_menu import option_menu
 # --- 1. IMPORTAÇÕES DA LÓGICA MODULARIZADA ---
 from data_handler import load_data
 from idf import calculate_annual_maxima, calculate_idf_curves, calcular_chuva_projeto
-from tc import calcular_tc_kirpich, calcular_tc_giandotti
+from tc import (
+    calcular_tc_kirpich, calcular_tc_giandotti, verificar_faixa_kirpich, verificar_faixa_giandotti
+)
 from racional import calcular_vazao_racional
 from manning import (
     dimensionar_conduto_circular, diametro_teorico_circular, geom_circular_parcial,
@@ -21,7 +23,7 @@ from manning import (
     y_normal, y_critico, b_para_Q, razao_enchimento_conduto_circular
 )
 from relatorio import gerar_pdf_bytes
-from config import MATERIAIS_MANNING, G, RHO, DIAMETROS_COMERCIAIS_CONCRETO_MM
+from config import MATERIAIS_MANNING, G, RHO, DIAMETROS_COMERCIAIS_CONCRETO_MM, GIANDOTTI_FAIXA_AREA_KM2
 
 
 # =============================================================================
@@ -373,17 +375,29 @@ elif pagina_selecionada == "Tempo de Concentração":
 
     if metodo_tc == "Kirpich":
         with st.container(border=True):
-            c1, c2 = st.columns(2)
+            c1, c2, c3 = st.columns(3)
             with c1:
                 L_kirpich = st.number_input("Comprimento do curso d'água (m)", min_value=1.0, value=500.0)
             with c2:
                 i_kirpich = st.number_input("Declividade média (m/m)", min_value=0.001, value=0.02, format="%.3f")
+            with c3:
+                A_kirpich = st.number_input(
+                    "Área da bacia (km²)", min_value=0.001, value=0.10, format="%.3f",
+                    help="Não entra na fórmula de Kirpich; é usada apenas para verificar a faixa de aplicabilidade do método."
+                )
         if st.button("Calcular Tc (Kirpich)"):
             tc_min = calcular_tc_kirpich(L_kirpich, i_kirpich)
             st.success(f"Tempo de concentração (Kirpich): **{tc_min:.2f} minutos**")
+            for alerta in verificar_faixa_kirpich(A_kirpich, L_kirpich, i_kirpich):
+                st.warning(f"{alerta} O resultado foi calculado, mas deve ser usado com cautela (Kirpich, 1940; Silveira, 2005).")
             st.session_state["tc_min"] = tc_min
     
     elif metodo_tc == "Giandotti":
+        st.info(
+            f"O método de Giandotti foi desenvolvido para bacias maiores "
+            f"({GIANDOTTI_FAIXA_AREA_KM2[0]:g} a {GIANDOTTI_FAIXA_AREA_KM2[1]:g} km²) e está fora do escopo de microdrenagem. "
+            "Está incluído no PLUVIAH para comparação didática."
+        )
         with st.container(border=True):
             c1, c2 = st.columns(2)
             c3, c4 = st.columns(2)
@@ -400,6 +414,8 @@ elif pagina_selecionada == "Tempo de Concentração":
             if H_giandotti > 0:
                 tc_min = calcular_tc_giandotti(A_giandotti, L_giandotti, H_giandotti)
                 st.success(f"Tempo de concentração (Giandotti): **{tc_min:.2f} minutos**")
+                for alerta in verificar_faixa_giandotti(A_giandotti):
+                    st.warning(f"{alerta} O resultado foi calculado, mas deve ser usado com cautela (Giandotti, 1934; Silveira, 2005).")
                 st.session_state["tc_min"] = tc_min
             else:
                 st.warning("A altitude média da bacia deve ser maior que a cota do exutório (H > 0).")

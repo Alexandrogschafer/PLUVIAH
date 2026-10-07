@@ -1,7 +1,9 @@
 # tests/test_tc.py
 
 import pytest
-from tc import calcular_tc_kirpich, calcular_tc_giandotti
+from tc import (
+    calcular_tc_kirpich, calcular_tc_giandotti, verificar_faixa_kirpich, verificar_faixa_giandotti
+)
 
 # Usamos pytest.approx para lidar com a imprecisão de números de ponto flutuante (floats)
 # Testes para a fórmula de Kirpich
@@ -65,3 +67,46 @@ def test_giandotti_entrada_invalida():
     assert calcular_tc_giandotti(10, 5, 0) == 0.0
     assert calcular_tc_giandotti(10, 5, -20) == 0.0
     assert calcular_tc_giandotti(0, 5, 100) == 0.0
+
+# Testes para os alertas de faixa de aplicabilidade
+def test_faixa_kirpich_dentro():
+    """
+    Bacia de 0,10 km², talvegue de 500 m e declividade de 0,05 m/m: dentro da faixa, sem alertas.
+    """
+    assert verificar_faixa_kirpich(A_km2=0.10, L_m=500, i_m_per_m=0.05) == []
+
+def test_faixa_kirpich_fora():
+    """
+    Cada grandeza fora da faixa gera o seu alerta; o cálculo do Tc não é bloqueado.
+    """
+    # Área de 2 km² (máximo 0,45), comprimento de 3 km (máximo 1,19) e declividade de 0,005 (mínimo 0,02)
+    alertas = verificar_faixa_kirpich(A_km2=2.0, L_m=3000, i_m_per_m=0.005)
+    assert len(alertas) == 3
+    assert "Área" in alertas[0] and "Declividade" in alertas[1] and "Comprimento" in alertas[2]
+
+    # Só a área fora da faixa
+    alertas = verificar_faixa_kirpich(A_km2=0.001, L_m=500, i_m_per_m=0.05)
+    assert len(alertas) == 1 and "Área" in alertas[0]
+
+    assert calcular_tc_kirpich(3000, 0.005) > 0
+
+def test_faixa_kirpich_limites_sao_inclusivos():
+    """
+    Os valores exatamente nos limites da faixa são aceitos.
+    """
+    assert verificar_faixa_kirpich(A_km2=0.005, L_m=100, i_m_per_m=0.02) == []
+    assert verificar_faixa_kirpich(A_km2=0.45, L_m=1190, i_m_per_m=0.09) == []
+
+def test_faixa_giandotti_dentro():
+    """
+    Bacia de 500 km²: dentro da faixa (170 a 70.000 km²), sem alertas.
+    """
+    assert verificar_faixa_giandotti(500) == []
+
+def test_faixa_giandotti_fora():
+    """
+    Bacia de microdrenagem (0,5 km²) e bacia acima do limite superior geram alerta.
+    """
+    assert len(verificar_faixa_giandotti(0.5)) == 1
+    assert len(verificar_faixa_giandotti(100000)) == 1
+    assert calcular_tc_giandotti(0.5, 1, 20) > 0
