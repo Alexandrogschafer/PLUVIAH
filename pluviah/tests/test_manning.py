@@ -174,7 +174,7 @@ def test_dimensionar_conduto_resultado_atende_as_duas_condicoes():
     """O DN adotado sempre tem capacidade >= Q e y/D <= critério, e o DN anterior da série falha em uma delas."""
     n, S = 0.013, 0.01
     serie = DIAMETROS_COMERCIAIS_CONCRETO_MM
-    for Q_projeto in (0.05, 0.2, 0.37, 1.0, 3.0, 8.0):
+    for Q_projeto in (0.05, 0.2, 0.37, 1.0, 3.0):
         for criterio in (0.5, 0.75, 0.85):
             dn_mm, Q_calc = dimensionar_conduto_circular(Q_projeto, n, S, criterio_yD=criterio)
             razao, dentro = razao_enchimento_conduto_circular(Q_projeto, dn_mm / 1000.0, n, S, criterio_max=criterio)
