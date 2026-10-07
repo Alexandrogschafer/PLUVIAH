@@ -120,9 +120,16 @@ def _construir_pdf(dados_relatorio):
         dados = dados_relatorio['conduto']
         texto_hidraulico += (
             f"Conduto Circular:\n"
-            f"  - Diâmetro Recomendado: {dados['diametro']:.3f} m\n"
-            f"  - Vazão de Capacidade: {dados['vazao_calc']:.3f} m³/s\n"
-            f"  - Velocidade: {dados['velocidade']:.3f} m/s\n"
+        )
+        if dados.get('diametro_teorico') is not None:
+            texto_hidraulico += f"  - Diâmetro Teórico Mínimo (cálculo contínuo): {dados['diametro_teorico'] * 1000:.0f} mm\n"
+        if dados.get('dn_mm') is not None:
+            texto_hidraulico += f"  - Diâmetro Comercial Adotado: DN {dados['dn_mm']} (ABNT NBR 8890)\n"
+        else:
+            texto_hidraulico += f"  - Diâmetro Recomendado: {dados['diametro']:.3f} m\n"
+        texto_hidraulico += (
+            f"  - Vazão de Capacidade (seção cheia): {dados['vazao_calc']:.3f} m³/s\n"
+            f"  - Velocidade na Vazão de Projeto: {dados['velocidade']:.3f} m/s\n"
         )
         if dados.get('razao_yD') is not None:
             texto_hidraulico += (

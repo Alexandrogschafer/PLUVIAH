@@ -4,6 +4,10 @@
 G = 9.81      # Aceleração da gravidade (m/s²)
 RHO = 1000.0  # Densidade da água (kg/m³)
 
+# Diâmetros nominais comerciais de tubos de concreto para águas pluviais (mm)
+# ABNT NBR 8890:2020 — conferir a lista no texto da norma
+DIAMETROS_COMERCIAIS_CONCRETO_MM = [300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1500, 1750, 2000]
+
 # Mapeamento de materiais para coeficiente de Manning (n)
 MATERIAIS_MANNING = {
     "Canal de concreto acabado": 0.013,

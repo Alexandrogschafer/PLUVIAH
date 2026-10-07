@@ -2,11 +2,13 @@
 
 import math
 import pytest
+from config import DIAMETROS_COMERCIAIS_CONCRETO_MM
 from manning import (
     geom_trapezio,
     manning_Q,
     q_manning_circular_cheia,
     dimensionar_conduto_circular,
+    diametro_teorico_circular,
     geom_circular_parcial,
     q_manning_circular_parcial,
     razao_enchimento_conduto_circular,
@@ -106,40 +108,76 @@ def test_q_manning_circular_cheia_calculo_correto():
 def test_dimensionar_conduto_circular_logica():
     """
     Testa a lógica da função de dimensionamento.
-    Verifica se a função escolhe o menor diâmetro que satisfaz a vazão de projeto.
+    Verifica se a função escolhe o menor diâmetro comercial que satisfaz a vazão de projeto.
     """
     Q_projeto = 0.3  # m³/s
     n = 0.013
     S = 0.01
-    
-    # Vamos calcular as capacidades para alguns diâmetros
-    q_d400 = q_manning_circular_cheia(d=0.4, n=n, S=S) # ~= 0.222 m³/s (Insuficiente)
-    q_d500 = q_manning_circular_cheia(d=0.5, n=n, S=S) # ~= 0.377 m³/s (Suficiente)
-    q_d600 = q_manning_circular_cheia(d=0.6, n=n, S=S) # ~= 0.578 m³/s (Suficiente, mas não é o mínimo)
 
-    # A função deve retornar o diâmetro de 0.5m (500mm) e sua respectiva vazão
-    d_rec, Q_calc = dimensionar_conduto_circular(
-        Q_projeto, n, S, d_min_m=0.1, d_max_m=2.0, passo_m=0.1
-    )
-    
-    assert d_rec == pytest.approx(0.5)
+    # Capacidades a seção cheia dos diâmetros comerciais vizinhos
+    q_d400 = q_manning_circular_cheia(d=0.4, n=n, S=S) # ~= 0.208 m³/s (Insuficiente)
+    q_d500 = q_manning_circular_cheia(d=0.5, n=n, S=S) # ~= 0.377 m³/s (Suficiente)
+    assert q_d400 < Q_projeto < q_d500
+
+    # A função deve retornar o DN 500 e sua respectiva vazão de capacidade
+    dn_mm, Q_calc = dimensionar_conduto_circular(Q_projeto, n, S)
+
+    assert dn_mm == 500
     assert Q_calc == pytest.approx(q_d500)
+
+def test_dimensionar_conduto_so_retorna_diametros_da_serie_comercial():
+    """Para qualquer vazão atendida, o diâmetro adotado pertence à série comercial de config.py."""
+    for Q_projeto in (0.01, 0.2, 0.9, 2.5, 6.0, 14.0):
+        dn_mm, Q_calc = dimensionar_conduto_circular(Q_projeto, n=0.013, S=0.01)
+        assert dn_mm in DIAMETROS_COMERCIAIS_CONCRETO_MM
+        assert Q_calc >= Q_projeto
+
+def test_dimensionar_conduto_respeita_diametro_minimo():
+    """Vazão pequena: adota o diâmetro mínimo de projeto (padrão 300 mm, configurável)."""
+    assert dimensionar_conduto_circular(0.01, 0.013, 0.01)[0] == 300
+    assert dimensionar_conduto_circular(0.01, 0.013, 0.01, d_min_mm=600)[0] == 600
+
+def test_dimensionar_conduto_serie_personalizada():
+    """A série de diâmetros é um parâmetro: com outra lista, a escolha muda."""
+    dn_mm, _ = dimensionar_conduto_circular(0.3, 0.013, 0.01, diametros_mm=[400, 600, 800])
+    assert dn_mm == 600
 
 def test_dimensionar_conduto_nao_encontrado():
     """
-    Testa o caso em que nenhum diâmetro no intervalo consegue atender à vazão.
+    Testa o caso em que a vazão excede a capacidade do maior diâmetro da série:
+    a função sinaliza com (None, None) em vez de devolver um diâmetro insuficiente.
     """
     Q_projeto_alto = 100.0  # Vazão muito alta
     n = 0.013
     S = 0.001
 
-    # Com um intervalo de diâmetros pequeno, a função não deve encontrar solução
-    d_rec, Q_calc = dimensionar_conduto_circular(
-        Q_projeto_alto, n, S, d_min_m=0.1, d_max_m=1.0, passo_m=0.1
-    )
+    q_maior_dn = q_manning_circular_cheia(max(DIAMETROS_COMERCIAIS_CONCRETO_MM) / 1000.0, n, S)
+    assert q_maior_dn < Q_projeto_alto
 
-    assert d_rec is None
+    dn_mm, Q_calc = dimensionar_conduto_circular(Q_projeto_alto, n, S)
+
+    assert dn_mm is None
     assert Q_calc is None
+
+def test_diametro_teorico_circular_valor_conhecido():
+    """
+    Q=0.3 m³/s, n=0.013, S=0.01:
+    d = (4^(5/3) * 0.013 * 0.3 / (pi * 0.1))^(3/8) = (0.12513)^(0.375) = 0.4587 m,
+    que fica entre o DN 400 e o DN 500 — coerente com o DN 500 adotado.
+    """
+    d_teorico = diametro_teorico_circular(0.3, 0.013, 0.01)
+    assert d_teorico == pytest.approx(0.4587, abs=1e-4)
+
+def test_diametro_teorico_circular_conduz_exatamente_a_vazao():
+    """No diâmetro teórico, a capacidade a seção cheia é igual à vazão de projeto."""
+    for Q_projeto in (0.05, 0.3, 4.0):
+        d_teorico = diametro_teorico_circular(Q_projeto, 0.015, 0.004)
+        assert q_manning_circular_cheia(d_teorico, 0.015, 0.004) == pytest.approx(Q_projeto)
+
+def test_diametro_teorico_circular_entrada_invalida():
+    """Vazão, rugosidade ou declividade não positivas retornam 0."""
+    assert diametro_teorico_circular(0.0, 0.013, 0.01) == 0.0
+    assert diametro_teorico_circular(0.3, 0.013, 0.0) == 0.0
 
 # --- Testes para Condutos Circulares Parcialmente Cheios (Razão de Enchimento) ---
 

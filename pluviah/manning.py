@@ -1,7 +1,7 @@
 # manning.py
 
 import math
-from config import G, RHO
+from config import G, RHO, DIAMETROS_COMERCIAIS_CONCRETO_MM
 
 # --- Funcoes para Condutos Circulares ---
 
@@ -13,14 +13,27 @@ def q_manning_circular_cheia(d, n, S):
     A = (math.pi / 4.0) * d**2
     return (1.0 / n) * A * (R ** (2.0 / 3.0)) * (S ** 0.5)
 
-def dimensionar_conduto_circular(Q_projeto, n, S, d_min_m, d_max_m, passo_m):
-    """Itera para encontrar o diametro mínimo que atende a vazao de projeto."""
-    d = d_min_m
-    while d <= d_max_m + 1e-9:
-        q_est = q_manning_circular_cheia(d, n, S)
+def diametro_teorico_circular(Q_projeto, n, S):
+    """
+    Diametro minimo teorico (calculo continuo, em m) para conduzir Q_projeto a secao cheia.
+    Forma fechada da equacao de Manning: d = (4^(5/3) * n * Q / (pi * S^0.5))^(3/8).
+    """
+    if Q_projeto <= 0 or n <= 0 or S <= 0:
+        return 0.0
+    return ((4.0 ** (5.0 / 3.0)) * n * Q_projeto / (math.pi * S ** 0.5)) ** (3.0 / 8.0)
+
+def dimensionar_conduto_circular(Q_projeto, n, S, diametros_mm=DIAMETROS_COMERCIAIS_CONCRETO_MM, d_min_mm=300):
+    """
+    Escolhe o menor diametro nominal comercial (>= d_min_mm) cuja capacidade a secao
+    cheia atende a vazao de projeto. Retorna (dn_mm, q_capacidade), ou (None, None) se
+    nem o maior diametro da serie atende.
+    """
+    for dn_mm in sorted(diametros_mm):
+        if dn_mm < d_min_mm:
+            continue
+        q_est = q_manning_circular_cheia(dn_mm / 1000.0, n, S)
         if q_est >= Q_projeto:
-            return d, q_est
-        d += passo_m
+            return dn_mm, q_est
     return None, None
 
 # Razao y/D onde a vazao de um conduto circular parcialmente cheio atinge seu pico
