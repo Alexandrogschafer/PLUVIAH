@@ -4,6 +4,19 @@ import pandas as pd
 import numpy as np
 from scipy.stats import gumbel_r, pearson3, kstest, anderson, goodness_of_fit
 
+def _anderson_darling_gumbel(z):
+    """Teste Anderson-Darling para Gumbel sobre dados padronizados. Retorna (estatistica, p-valor).
+    O p-valor e interpolado da tabela de valores criticos, portanto limitado a [0.01, 0.25]."""
+    try:
+        # SciPy >= 1.17: `method` e obrigatorio a partir do 1.19
+        res = anderson(z, dist='gumbel_r', method='interpolate')
+        return res.statistic, res.pvalue
+    except TypeError:
+        # SciPy < 1.17: sem o parametro `method`; interpola na tabela de valores criticos
+        res = anderson(z, dist='gumbel_r')
+        p = np.interp(res.statistic, res.critical_values, res.significance_level / 100.0)
+        return res.statistic, p
+
 def calculate_annual_maxima(df, duration):
     """Calcula as maximas anuais para uma dada duracao."""
     accumulated = df["precipitacao"].rolling(window=duration, min_periods=1).sum()
@@ -19,7 +32,7 @@ def calculate_idf_curves(series, duration, trs_np):
     mu_g, beta_g = gumbel_r.fit(series.values)
     _, ks_p = kstest(series.values, 'gumbel_r', args=(mu_g, beta_g))
     # Teste Anderson-Darling é mais sensível nas caudas da distribuição
-    ad_result = anderson((series.values - mu_g) / beta_g, dist='gumbel_r')
+    ad_stat, ad_p = _anderson_darling_gumbel((series.values - mu_g) / beta_g)
     intensities_gumbel = [gumbel_r.ppf(1 - 1/tr, loc=mu_g, scale=beta_g) for tr in trs_np]
     
     # --- Log-Pearson III ---
@@ -50,8 +63,8 @@ def calculate_idf_curves(series, duration, trs_np):
     })
     
     params_gumbel = {
-        "mu": mu_g, "beta": beta_g, "ks_p": ks_p, 
-        "ad_stat": ad_result.statistic, "ad_crit": ad_result.critical_values
+        "mu": mu_g, "beta": beta_g, "ks_p": ks_p,
+        "ad_stat": ad_stat, "ad_p": ad_p
     }
     params_lp3 = {
         "mean_log": mean_log, "std_log": std_log, "skew": skew,
